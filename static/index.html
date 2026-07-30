@@ -56,6 +56,7 @@
   button:hover { background: #2f57c9; }
   button.secondary { background: #2a2e38; }
   button.secondary:hover { background: #3a3f4c; }
+  .action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   button.danger { background: #a83f3f; padding: 4px 10px; font-size: 12px; }
   button.info-btn {
     background: none;
@@ -215,10 +216,12 @@
 
     <div class="panel">
       <h2>Add a ticker</h2>
-      <input type="text" id="tickerInput" placeholder="e.g. AAPL" maxlength="10">
-      <button onclick="addTicker()">Add</button>
-      <button class="secondary" onclick="checkNow()">Check Now</button>
-      <span id="status"></span>
+      <div class="action-row">
+        <input type="text" id="tickerInput" placeholder="e.g. AAPL" maxlength="10">
+        <button onclick="addTicker()">Add</button>
+        <button class="secondary" onclick="checkNow()">Check Now</button>
+        <span id="status"></span>
+      </div>
     </div>
 
     <div class="panel">
