@@ -420,45 +420,6 @@ def api_change_password(payload: PasswordChange, user_id: int = Depends(require_
     return {"status": "ok"}
 
 
-# ============ One-time trade_log cleanup (delete this block after use) ============
-#
-# An earlier bug placed duplicate AutoTrade orders on repeat runs before an
-# order had filled; each duplicate submission also logged a trade_log row,
-# even for orders later cancelled as duplicates. This is a narrow,
-# temporary tool to inspect and remove those specific stale rows on the
-# live database. Inert unless CLEANUP_TOKEN is set (Railway dashboard
-# only, never in .env) -- remove the env var and this route once used.
-
-CLEANUP_TOKEN = os.environ.get("CLEANUP_TOKEN", "")
-
-
-def _require_cleanup_token(request: Request):
-    if not CLEANUP_TOKEN or request.headers.get("X-Cleanup-Token") != CLEANUP_TOKEN:
-        raise HTTPException(status_code=404)
-
-
-@app.get("/admin/trade-log")
-def admin_list_trade_log(request: Request):
-    _require_cleanup_token(request)
-    conn = db.get_connection()
-    rows = conn.execute("SELECT * FROM trade_log ORDER BY created_at").fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
-@app.post("/admin/trade-log/delete")
-def admin_delete_trade_log(request: Request, ids: str = ""):
-    _require_cleanup_token(request)
-    id_list = [int(x) for x in ids.split(",") if x.strip()]
-    if not id_list:
-        raise HTTPException(status_code=400, detail="Pass ?ids=1,2,3")
-    conn = db.get_connection()
-    conn.executemany("DELETE FROM trade_log WHERE id = ?", [(i,) for i in id_list])
-    conn.commit()
-    conn.close()
-    return {"deleted": id_list}
-
-
 # ============ Serve the frontend ============
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
