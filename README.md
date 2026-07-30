@@ -124,11 +124,26 @@ This uses Railway (railway.com) — a hosting platform that runs your app
 ### Carrying over your existing local accounts and data
 
 A brand-new deploy starts with an empty database — your local accounts,
-watchlists, and AutoTrade setup won't just appear. If you want them to
-carry over instead of starting fresh, copy your local `watchlist.db`
-onto the Railway volume after the first deploy (e.g. via `railway run` /
-a one-off shell, or any file-copy method Railway's volume UI supports)
-before anyone else registers on the live site.
+watchlists, and AutoTrade setup won't just appear. `app.py` has a
+one-time import route for exactly this (`/admin/import-db`), disabled
+by default:
+
+1. In Railway → Settings → Variables, add `DB_IMPORT_TOKEN` = some long
+   random string (only in Railway's dashboard — never put this in
+   `.env`). Deploy so it takes effect.
+2. From your local machine, upload your local `watchlist.db`:
+   ```
+   curl -X POST "https://your-app.up.railway.app/admin/import-db?confirm=true" \
+     -H "X-Import-Token: the-value-you-set-above" \
+     --data-binary @watchlist.db
+   ```
+   This **overwrites** whatever's on the live volume — do this before
+   anyone else registers on the live site.
+3. Confirm it worked (log in on the live URL with an existing account).
+4. **Remove `DB_IMPORT_TOKEN` from Railway's variables**, and delete the
+   `/admin/import-db` route from `app.py` (and its `DB_IMPORT_TOKEN`
+   line) in a follow-up commit — it's a one-time tool, not something to
+   leave reachable indefinitely.
 
 ### Before this is genuinely public
 
