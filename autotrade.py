@@ -119,6 +119,13 @@ def run_rotation_bot(user_id, api_key, secret_key):
     current_positions = get_current_positions(client)
     log_lines.append(f"Currently held: {list(current_positions.keys()) or 'nothing'}")
 
+    # Orders can sit "accepted" but unfilled for a while (e.g. a market
+    # order placed while the exchange is closed) -- they don't show up in
+    # get_all_positions() yet, so without this a repeat run would see
+    # "not held" and buy/sell the same ticker again on top of the order
+    # that's already working.
+    pending_tickers = {o["ticker"] for o in get_open_orders(client)}
+
     exits, entries = [], []
     entry_strategy_by_ticker = {row["ticker"]: row["entry_strategy"] for row in watchlist}
     exit_strategy_by_ticker = {row["ticker"]: row["exit_strategy"] for row in watchlist}
@@ -126,6 +133,10 @@ def run_rotation_bot(user_id, api_key, secret_key):
     for row in watchlist:
         t = row["ticker"]
         held = t in current_positions
+
+        if t in pending_tickers:
+            log_lines.append(f"{t}: order already pending, skipping until it fills")
+            continue
 
         if held:
             entry_price = current_positions[t]["avg_entry_price"]
