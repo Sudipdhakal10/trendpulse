@@ -36,9 +36,16 @@ def get_live_snapshots(tickers):
         resp = requests.get(ALPACA_SNAPSHOTS_URL, headers=headers, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
+    except requests.exceptions.HTTPError:
+        try:
+            detail = resp.json().get("message", resp.text[:200])
+        except Exception:
+            detail = resp.text[:200]
+        print(f"Alpaca fetch failed: {resp.status_code} {detail}")
+        return {"_error": f"Alpaca API error {resp.status_code}: {detail}"}
     except Exception as e:
         print(f"Alpaca fetch failed: {e}")
-        return {}
+        return {"_error": f"Alpaca fetch failed: {type(e).__name__}: {e}"}
 
     snapshots = data if isinstance(data, dict) else {}
     results = {}
