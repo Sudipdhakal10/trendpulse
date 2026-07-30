@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TrendPulse — AutoTrade</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
 <style>
@@ -28,6 +29,7 @@
     gap: 20px;
     align-items: start;
   }
+  .main-column, .side-column { min-width: 0; }
   .side-column { position: sticky; top: 20px; }
   @media (max-width: 800px) {
     .layout { grid-template-columns: 1fr; }
@@ -57,6 +59,7 @@
   button.toggle-on { background: #2f8f5b; }
   button.toggle-off { background: #444; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #autotradeWatchlistTable, #positionsTable, #pendingOrdersTable { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   th, td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #262a33; }
   th { color: #999; font-weight: 500; }
   td:first-child, th:first-child { text-align: left; font-weight: 600; }
