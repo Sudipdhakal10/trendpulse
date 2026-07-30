@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+apscheduler
+yfinance
+pandas
+pydantic
+requests
+lxml
+python-dotenv
+alpaca-py
+itsdangerous

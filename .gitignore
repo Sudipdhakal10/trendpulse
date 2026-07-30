@@ -1,0 +1,6 @@
+watchlist.db
+watchlist.db.bak*
+__pycache__/
+*.pyc
+.DS_Store
+.env

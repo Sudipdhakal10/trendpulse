@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TrendPulse — AutoTrade</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+    max-width: 1280px;
+    margin: 64px auto 40px;
+    padding: 0 20px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #999; margin-bottom: 20px; font-size: 14px; }
+  .nav { margin-bottom: 20px; display: flex; align-items: center; }
+  .nav a { color: #999; text-decoration: none; margin-right: 20px; font-size: 14px; padding-bottom: 4px; }
+  .nav a.active { color: #e6e6e6; border-bottom: 2px solid #3b6ef6; }
+  .nav a:hover { color: #e6e6e6; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+  .nav-icon { margin-right: 0 !important; display: flex; align-items: center; padding-bottom: 4px; }
+  .nav-icon svg { display: block; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .side-column { position: sticky; top: 20px; }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+    .side-column { position: static; }
+  }
+  .panel {
+    background: #171a21;
+    border: 1px solid #2a2e38;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 15px; margin-top: 0; color: #ccc; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; }
+  button {
+    background: #3b6ef6;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:hover { background: #2f57c9; }
+  button.secondary { background: #2a2e38; }
+  button.secondary:hover { background: #3a3f4c; }
+  button.toggle-on { background: #2f8f5b; }
+  button.toggle-off { background: #444; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #262a33; }
+  th { color: #999; font-weight: 500; }
+  td:first-child, th:first-child { text-align: left; font-weight: 600; }
+  button.danger { background: #a83f3f; padding: 4px 10px; font-size: 12px; }
+  .empty { color: #777; font-size: 13px; padding: 10px 0; }
+  .add-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .add-row input[type=text] {
+    background: #0f1115;
+    border: 1px solid #333;
+    color: #eee;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  select {
+    background: #0f1115;
+    border: 1px solid #333;
+    color: #eee;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  #autotradeAddStatus { font-size: 13px; color: #7fdc9c; }
+  .pl-pos { color: #4ade80; font-weight: 600; }
+  .pl-neg { color: #f87171; font-weight: 600; }
+  .banner {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+  .banner-paper { background: #1f3a2c; color: #6fdc9c; border: 1px solid #2f5c42; }
+  .banner-live { background: #3a1f1f; color: #ff8a8a; border: 1px solid #5c2f2f; }
+  .stat-row { display: flex; gap: 30px; margin-bottom: 8px; }
+  .stat-label { color: #888; font-size: 12px; }
+  .stat-value { font-size: 20px; font-weight: 600; }
+  .log-line { font-family: "SF Mono", Menlo, monospace; font-size: 12px; color: #ccc; padding: 2px 0; }
+  .trade-item { padding: 8px 0; border-bottom: 1px solid #262a33; font-size: 13px; }
+  .trade-item:last-child { border-bottom: none; }
+  .trade-buy { color: #4ade80; }
+  .trade-sell { color: #f87171; }
+  .config-list { font-size: 13px; color: #ccc; line-height: 1.8; }
+  #status { font-size: 13px; color: #7fdc9c; margin-left: 10px; }
+  .keys-form label { font-size: 13px; color: #999; display: block; margin-bottom: 6px; margin-top: 12px; }
+  .keys-form input {
+    width: 100%;
+    background: #0f1115;
+    border: 1px solid #333;
+    color: #eee;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    box-sizing: border-box;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .keys-status { font-size: 12.5px; color: #888; margin-top: 10px; }
+  #keysSaveStatus { font-size: 13px; color: #7fdc9c; margin-left: 10px; }
+  .tp-brand {
+    position: fixed;
+    top: 16px;
+    left: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    line-height: 1.3;
+  }
+  .tp-logo { flex-shrink: 0; display: block; }
+  .tp-brand-name { display: block; font-weight: 700; font-size: 14px; color: #e6e6e6; letter-spacing: -0.3px; }
+  .tp-brand-tag { display: block; font-size: 10.5px; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<div class="tp-brand">
+  <svg class="tp-logo" width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="0.5" y="0.5" width="27" height="27" rx="7" fill="#12151c" stroke="#2a2e38"/>
+    <path d="M4 16H9L11 10L14.5 20L17 8L19.5 16H24" stroke="#35e28a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="17" cy="8" r="1.7" fill="#ff9f40"/>
+  </svg>
+  <div>
+    <span class="tp-brand-name">TrendPulse</span>
+    <span class="tp-brand-tag">Trade the plan, not the moment.</span>
+  </div>
+</div>
+
+<h1>AutoTrade</h1>
+<div class="nav">
+  <a href="/watchlist">Watchlist</a>
+  <a href="/autotrade" class="active">AutoTrade</a>
+  <div class="nav-right">
+    <a href="/profile" class="nav-icon" title="Profile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+      </svg>
+    </a>
+    <a href="/logout">Log Out</a>
+  </div>
+</div>
+<div class="subtitle">Runs your own entry/exit strategies, on your own stock picks, against your Alpaca account.</div>
+
+<div id="tradingBanner"></div>
+
+<div class="layout">
+
+  <div class="main-column">
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Automated Daily Run</h2>
+        <div>
+          <button id="toggleBtn" onclick="toggleAutotrade()">...</button>
+          <button class="secondary" onclick="runNow()">Run Now</button>
+          <span id="status"></span>
+        </div>
+      </div>
+      <div class="subtitle" id="scheduleInfo" style="margin-top:12px; margin-bottom:0;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Your AutoTrade Watchlist</h2>
+      <div class="subtitle" style="margin-bottom:12px;">Pick your own stocks and an entry/exit strategy for each. This is separate from your email Watchlist — enabling a strategy there for alerts never triggers a real trade here.</div>
+      <div class="add-row">
+        <input type="text" id="autotradeTickerInput" placeholder="e.g. AAPL" maxlength="10">
+        <select id="autotradeEntrySelect"></select>
+        <select id="autotradeExitSelect"></select>
+        <button onclick="addAutotradeTicker()">Add</button>
+        <span id="autotradeAddStatus"></span>
+      </div>
+      <div id="autotradeWatchlistTable" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Current Positions</h2>
+      <div id="positionsTable"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Pending Orders</h2>
+      <div class="subtitle" style="margin-bottom:12px;">Accepted by Alpaca but not filled yet — most often a market order placed while the exchange is closed, waiting for the next open.</div>
+      <div id="pendingOrdersTable"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Trades</h2>
+      <div id="tradeHistory"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Position Sizing</h2>
+      <div id="strategyConfig" class="config-list"></div>
+    </div>
+
+  </div>
+
+  <div class="side-column">
+
+    <div class="panel">
+      <h2>Your Alpaca Account</h2>
+      <div class="subtitle" style="margin-bottom:8px;">AutoTrade trades on your behalf using your own Alpaca API keys — get them free from your Alpaca dashboard (paper or live).</div>
+      <form class="keys-form" id="keysForm">
+        <label for="apiKey">API Key</label>
+        <input type="text" id="apiKey" autocomplete="off" placeholder="e.g. PKF4YLYM...">
+
+        <label for="secretKey">Secret Key</label>
+        <input type="password" id="secretKey" autocomplete="off" placeholder="Enter to replace saved secret">
+
+        <button type="submit" style="margin-top:14px;">Save Keys</button>
+        <span id="keysSaveStatus"></span>
+      </form>
+      <div class="keys-status" id="keysStatus">Checking...</div>
+    </div>
+
+    <div class="panel">
+      <h2>Account</h2>
+      <div id="accountStats"></div>
+      <div id="accountLiveStatus" style="font-size:11px; color:#666; margin-top:8px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Last Run Log</h2>
+      <div id="runLog" class="empty">No run yet — click "Run Now" to test, or wait for the scheduled run.</div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+async function loadConfig() {
+  const res = await fetch('/api/autotrade/config');
+  const cfg = await res.json();
+
+  const bannerEl = document.getElementById('tradingBanner');
+  if (cfg.paper_trading) {
+    bannerEl.innerHTML = '<div class="banner banner-paper">PAPER TRADING — no real money is being used.</div>';
+  } else {
+    bannerEl.innerHTML = '<div class="banner banner-live">LIVE TRADING — this account is trading with real money.</div>';
+  }
+
+  document.getElementById('scheduleInfo').textContent =
+    `Scheduled to run daily at ${cfg.run_time} when enabled.`;
+
+  document.getElementById('strategyConfig').innerHTML = `
+    <div><strong>Max per position:</strong> $${cfg.max_per_ticker.toLocaleString()}</div>
+    <div><strong>Minimum trade size:</strong> $${cfg.min_trade_dollars}</div>
+    <div><strong>Take Profit / Stop Loss exit target:</strong> +${cfg.take_profit_pct}% / -${cfg.stop_loss_pct}%</div>
+  `;
+}
+
+async function loadEnabledState() {
+  const res = await fetch('/api/autotrade/enabled');
+  const data = await res.json();
+  const btn = document.getElementById('toggleBtn');
+  btn.textContent = data.enabled ? 'Automation: ON' : 'Automation: OFF';
+  btn.className = data.enabled ? 'toggle-on' : 'toggle-off';
+  btn.dataset.enabled = data.enabled;
+}
+
+async function toggleAutotrade() {
+  const btn = document.getElementById('toggleBtn');
+  const newState = btn.dataset.enabled !== 'true';
+
+  await fetch('/api/autotrade/enabled', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: newState })
+  });
+
+  loadEnabledState();
+}
+
+// Each user hits this with their own Alpaca key (unlike the Watchlist
+// page's shared market-data key), so one user refreshing fast doesn't
+// affect anyone else's rate limit -- safe to poll aggressively.
+const ACCOUNT_REFRESH_INTERVAL_MS = 4000;
+
+async function loadAccount() {
+  const res = await fetch('/api/autotrade/status');
+  const data = await res.json();
+  const statsEl = document.getElementById('accountStats');
+  const positionsEl = document.getElementById('positionsTable');
+  const liveStatusEl = document.getElementById('accountLiveStatus');
+
+  if (data.error) {
+    statsEl.innerHTML = `<div class="empty">${data.error}</div>`;
+    positionsEl.innerHTML = '';
+    document.getElementById('pendingOrdersTable').innerHTML = '';
+    if (liveStatusEl) liveStatusEl.textContent = '';
+    return;
+  }
+
+  statsEl.innerHTML = `
+    <div class="stat-row">
+      <div>
+        <div class="stat-label">Portfolio Value</div>
+        <div class="stat-value">$${data.portfolio_value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+      </div>
+      <div>
+        <div class="stat-label">Cash Available</div>
+        <div class="stat-value">$${data.cash.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+      </div>
+    </div>
+  `;
+
+  if (data.positions.length === 0) {
+    positionsEl.innerHTML = '<div class="empty">No open positions.</div>';
+  } else {
+    let html = '<table><tr><th>Ticker</th><th>Qty</th><th>Current Price</th><th>Market Value</th><th>Unrealized P/L</th></tr>';
+    data.positions.forEach(p => {
+      const plClass = p.unrealized_pl >= 0 ? 'pl-pos' : 'pl-neg';
+      const sign = p.unrealized_pl >= 0 ? '+' : '';
+      html += `<tr>
+        <td>${p.ticker}</td>
+        <td>${p.qty}</td>
+        <td>$${p.current_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        <td>$${p.market_value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        <td class="${plClass}">${sign}$${p.unrealized_pl.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+      </tr>`;
+    });
+    html += '</table>';
+    positionsEl.innerHTML = html;
+  }
+
+  const pendingEl = document.getElementById('pendingOrdersTable');
+  if (!data.pending_orders || data.pending_orders.length === 0) {
+    pendingEl.innerHTML = '<div class="empty">No pending orders.</div>';
+  } else {
+    let pendingHtml = '<table><tr><th>Ticker</th><th>Side</th><th>Qty</th><th>Status</th><th>Submitted</th></tr>';
+    data.pending_orders.forEach(o => {
+      const sideClass = o.side === 'buy' ? 'trade-buy' : 'trade-sell';
+      const submitted = o.submitted_at ? new Date(o.submitted_at).toLocaleString() : '—';
+      pendingHtml += `<tr>
+        <td>${o.ticker}</td>
+        <td class="${sideClass}">${o.side.toUpperCase()}</td>
+        <td>${o.qty ?? '—'}</td>
+        <td>${o.status.replace(/_/g, ' ')}</td>
+        <td>${submitted}</td>
+      </tr>`;
+    });
+    pendingHtml += '</table>';
+    pendingEl.innerHTML = pendingHtml;
+  }
+
+  if (liveStatusEl) {
+    const now = new Date().toLocaleTimeString();
+    liveStatusEl.textContent = `Updated ${now} (updates every ${ACCOUNT_REFRESH_INTERVAL_MS / 1000}s while this page is open)`;
+  }
+}
+
+async function loadTradeHistory() {
+  const res = await fetch('/api/autotrade/trades');
+  const trades = await res.json();
+  const container = document.getElementById('tradeHistory');
+
+  if (trades.length === 0) {
+    container.innerHTML = '<div class="empty">No trades yet.</div>';
+    return;
+  }
+
+  container.innerHTML = trades.map(t => `
+    <div class="trade-item">
+      <span class="${t.side === 'buy' ? 'trade-buy' : 'trade-sell'}">${t.side.toUpperCase()}</span>
+      ${t.qty} shares of <strong>${t.ticker}</strong>
+      ${t.reason ? `— ${t.reason}` : ''}
+      <div style="color:#888; font-size:11px;">${t.created_at}</div>
+    </div>
+  `).join('');
+}
+
+async function runNow() {
+  const status = document.getElementById('status');
+  status.textContent = 'Running...';
+
+  const res = await fetch('/api/autotrade/run-now', { method: 'POST' });
+  const data = await res.json();
+
+  if (data.error) {
+    status.textContent = data.error;
+    return;
+  }
+
+  document.getElementById('runLog').innerHTML =
+    data.log.map(line => `<div class="log-line">${line}</div>`).join('');
+
+  status.textContent = 'Run complete.';
+  setTimeout(() => status.textContent = '', 5000);
+
+  loadAccount();
+  loadTradeHistory();
+}
+
+async function loadKeysStatus() {
+  const res = await fetch('/api/autotrade/keys');
+  const data = await res.json();
+  const statusEl = document.getElementById('keysStatus');
+  statusEl.textContent = data.has_keys
+    ? `Saved key: ${data.api_key_preview}`
+    : 'No Alpaca keys saved yet — AutoTrade cannot run until you add them.';
+}
+
+async function saveKeys(e) {
+  e.preventDefault();
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const secretKey = document.getElementById('secretKey').value.trim();
+  const saveStatus = document.getElementById('keysSaveStatus');
+
+  if (!apiKey || !secretKey) {
+    saveStatus.textContent = 'Enter both keys.';
+    setTimeout(() => saveStatus.textContent = '', 4000);
+    return;
+  }
+
+  await fetch('/api/autotrade/keys', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey, secret_key: secretKey })
+  });
+
+  document.getElementById('apiKey').value = '';
+  document.getElementById('secretKey').value = '';
+  saveStatus.textContent = 'Saved.';
+  setTimeout(() => saveStatus.textContent = '', 4000);
+
+  await loadKeysStatus();
+  await loadAccount();
+}
+
+document.getElementById('keysForm').addEventListener('submit', saveKeys);
+
+let ENTRY_STRATEGIES = [];
+let EXIT_STRATEGIES = [];
+let AUTOTRADE_WATCHLIST = [];
+
+function strategyOptionsHtml(options, selected) {
+  return options.map(s =>
+    `<option value="${s}" ${s === selected ? 'selected' : ''}>${s.replace(/_/g, ' ')}</option>`
+  ).join('');
+}
+
+async function loadStrategyOptions() {
+  const res = await fetch('/api/autotrade/strategies');
+  const data = await res.json();
+  ENTRY_STRATEGIES = data.entry_strategies;
+  EXIT_STRATEGIES = data.exit_strategies;
+
+  document.getElementById('autotradeEntrySelect').innerHTML = strategyOptionsHtml(ENTRY_STRATEGIES);
+  document.getElementById('autotradeExitSelect').innerHTML = strategyOptionsHtml(EXIT_STRATEGIES);
+}
+
+function renderAutotradeWatchlist() {
+  const container = document.getElementById('autotradeWatchlistTable');
+
+  if (AUTOTRADE_WATCHLIST.length === 0) {
+    container.innerHTML = '<div class="empty">No tickers yet — add one above.</div>';
+    return;
+  }
+
+  let html = '<table><tr><th>Ticker</th><th>Entry Strategy</th><th>Exit Strategy</th><th></th></tr>';
+  AUTOTRADE_WATCHLIST.forEach(r => {
+    html += `<tr>
+      <td>${r.ticker}</td>
+      <td><select onchange="updateAutotradeTicker('${r.ticker}', 'entry_strategy', this.value)">${strategyOptionsHtml(ENTRY_STRATEGIES, r.entry_strategy)}</select></td>
+      <td><select onchange="updateAutotradeTicker('${r.ticker}', 'exit_strategy', this.value)">${strategyOptionsHtml(EXIT_STRATEGIES, r.exit_strategy)}</select></td>
+      <td><button class="danger" onclick="removeAutotradeTicker('${r.ticker}')">Remove</button></td>
+    </tr>`;
+  });
+  html += '</table>';
+  container.innerHTML = html;
+}
+
+async function loadAutotradeWatchlist() {
+  const res = await fetch('/api/autotrade/watchlist');
+  AUTOTRADE_WATCHLIST = await res.json();
+  renderAutotradeWatchlist();
+}
+
+async function addAutotradeTicker() {
+  const input = document.getElementById('autotradeTickerInput');
+  const ticker = input.value.trim().toUpperCase();
+  const statusEl = document.getElementById('autotradeAddStatus');
+  if (!ticker) return;
+
+  await fetch('/api/autotrade/watchlist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ticker,
+      entry_strategy: document.getElementById('autotradeEntrySelect').value,
+      exit_strategy: document.getElementById('autotradeExitSelect').value,
+    })
+  });
+
+  input.value = '';
+  statusEl.textContent = `Added ${ticker}.`;
+  setTimeout(() => statusEl.textContent = '', 3000);
+  await loadAutotradeWatchlist();
+}
+
+async function updateAutotradeTicker(ticker, field, value) {
+  const row = AUTOTRADE_WATCHLIST.find(r => r.ticker === ticker);
+  if (!row) return;
+  row[field] = value;
+
+  await fetch('/api/autotrade/watchlist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticker: row.ticker, entry_strategy: row.entry_strategy, exit_strategy: row.exit_strategy })
+  });
+}
+
+async function removeAutotradeTicker(ticker) {
+  await fetch(`/api/autotrade/watchlist/${ticker}`, { method: 'DELETE' });
+  await loadAutotradeWatchlist();
+}
+
+async function init() {
+  await loadConfig();
+  await loadEnabledState();
+  await loadKeysStatus();
+  await loadStrategyOptions();
+  await loadAutotradeWatchlist();
+  await loadAccount();
+  await loadTradeHistory();
+  setInterval(loadAccount, ACCOUNT_REFRESH_INTERVAL_MS);
+}
+
+init();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TrendPulse — Watchlist</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+    max-width: 1280px;
+    margin: 64px auto 40px;
+    padding: 0 20px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #999; margin-bottom: 24px; font-size: 14px; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .side-column { position: sticky; top: 20px; }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+    .side-column { position: static; }
+  }
+  .panel {
+    background: #171a21;
+    border: 1px solid #2a2e38;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 15px; margin-top: 0; color: #ccc; }
+  input[type=text] {
+    background: #0f1115;
+    border: 1px solid #333;
+    color: #eee;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  button {
+    background: #3b6ef6;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:hover { background: #2f57c9; }
+  button.secondary { background: #2a2e38; }
+  button.secondary:hover { background: #3a3f4c; }
+  button.danger { background: #a83f3f; padding: 4px 10px; font-size: 12px; }
+  button.info-btn {
+    background: none;
+    border: 1px solid #333;
+    color: #999;
+    padding: 5px 12px;
+    font-size: 12.5px;
+  }
+  button.info-btn:hover { background: none; color: #e6e6e6; border-color: #555; }
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #171a21;
+    border: 1px solid #2a2e38;
+    border-radius: 10px;
+    padding: 22px 24px;
+    max-width: 460px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h2 { margin: 0; font-size: 16px; }
+  .modal-close {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 20px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+  }
+  .modal-close:hover { background: none; color: #e6e6e6; }
+  .modal-subtitle { color: #999; font-size: 12.5px; margin: 6px 0 16px; }
+  .strategy-info-item { padding: 10px 0; border-bottom: 1px solid #262a33; }
+  .strategy-info-item:last-child { border-bottom: none; }
+  .strategy-info-name { font-weight: 600; font-size: 13.5px; color: #e6e6e6; margin-bottom: 3px; }
+  .strategy-info-desc { font-size: 12.5px; color: #a3a3a3; line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #262a33; }
+  th { color: #999; font-weight: 500; }
+  td:first-child, th:first-child { text-align: left; font-weight: 600; }
+  .alert-item { padding: 8px 0; border-bottom: 1px solid #262a33; font-size: 13px; }
+  .alert-item:last-child { border-bottom: none; }
+  .alert-date { color: #888; font-size: 11px; }
+  .alert-history { margin-top: 4px; }
+  .alert-history summary {
+    cursor: pointer;
+    color: #999;
+    font-size: 12.5px;
+    padding: 8px 0 4px;
+    list-style: none;
+  }
+  .alert-history summary::-webkit-details-marker { display: none; }
+  .alert-history summary::before { content: "▸ "; color: #666; }
+  .alert-history[open] summary::before { content: "▾ "; }
+  .alert-history summary:hover { color: #ccc; }
+  .alert-history .alert-item:first-of-type { border-top: 1px solid #262a33; padding-top: 12px; }
+  .empty { color: #777; font-size: 13px; padding: 10px 0; }
+  #status { font-size: 13px; color: #7fdc9c; margin-left: 10px; }
+  .news-item { padding: 10px 0; border-bottom: 1px solid #262a33; font-size: 13px; }
+  .news-item:last-child { border-bottom: none; }
+  .news-item a { color: #e6e6e6; text-decoration: none; }
+  .news-item a:hover { color: #6fa1ff; }
+  .news-publisher { color: #888; font-size: 11px; margin-top: 2px; }
+  .mover-row { display: grid; grid-template-columns: 70px 90px 70px 1fr; align-items: center; padding: 8px 0; border-bottom: 1px solid #262a33; font-size: 13px; }
+  .mover-row:last-child { border-bottom: none; }
+  .mover-ticker { font-weight: 600; }
+  .mover-price { color: #999; }
+  .mover-change-pos { color: #4ade80; font-weight: 600; }
+  .mover-change-neg { color: #f87171; font-weight: 600; }
+  .mover-vol { color: #888; font-size: 12px; text-align: right; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; }
+  .refresh-btn { font-size: 12px; padding: 4px 10px; }
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #333;
+    border-top-color: #6fa1ff;
+    border-radius: 50%;
+    margin-left: 8px;
+    vertical-align: middle;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .live-price { font-weight: 600; }
+  .live-change-pos { color: #4ade80; font-weight: 600; }
+  .live-change-neg { color: #f87171; font-weight: 600; }
+  .live-change-na { color: #666; }
+  #liveStatus { font-size: 11px; color: #666; margin-top: 8px; }
+  .nav { margin-bottom: 20px; display: flex; align-items: center; }
+  .nav a { color: #999; text-decoration: none; margin-right: 20px; font-size: 14px; padding-bottom: 4px; }
+  .nav a.active { color: #e6e6e6; border-bottom: 2px solid #3b6ef6; }
+  .nav a:hover { color: #e6e6e6; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+  .nav-icon { margin-right: 0 !important; display: flex; align-items: center; padding-bottom: 4px; }
+  .nav-icon svg { display: block; }
+  .tp-brand {
+    position: fixed;
+    top: 16px;
+    left: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    line-height: 1.3;
+  }
+  .tp-logo { flex-shrink: 0; display: block; }
+  .tp-brand-name { display: block; font-weight: 700; font-size: 14px; color: #e6e6e6; letter-spacing: -0.3px; }
+  .tp-brand-tag { display: block; font-size: 10.5px; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<div class="tp-brand">
+  <svg class="tp-logo" width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="0.5" y="0.5" width="27" height="27" rx="7" fill="#12151c" stroke="#2a2e38"/>
+    <path d="M4 16H9L11 10L14.5 20L17 8L19.5 16H24" stroke="#35e28a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="17" cy="8" r="1.7" fill="#ff9f40"/>
+  </svg>
+  <div>
+    <span class="tp-brand-name">TrendPulse</span>
+    <span class="tp-brand-tag">Trade the plan, not the moment.</span>
+  </div>
+</div>
+
+<h1>Stock Watchlist</h1>
+<div class="nav">
+  <a href="/watchlist" class="active">Watchlist</a>
+  <a href="/autotrade">AutoTrade</a>
+  <div class="nav-right">
+    <a href="/profile" class="nav-icon" title="Profile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+      </svg>
+    </a>
+    <a href="/logout">Log Out</a>
+  </div>
+</div>
+<div class="subtitle">Toggle strategies per ticker. Checks run automatically once a day and email you on a trigger.</div>
+
+<div class="layout">
+
+  <div class="main-column">
+
+    <div class="panel">
+      <h2>Add a ticker</h2>
+      <input type="text" id="tickerInput" placeholder="e.g. AAPL" maxlength="10">
+      <button onclick="addTicker()">Add</button>
+      <button class="secondary" onclick="checkNow()">Check Now</button>
+      <span id="status"></span>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Alerts</h2>
+      <div id="alertsList"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Watchlist</h2>
+        <button class="info-btn" onclick="openStrategyInfo()">ⓘ What do these mean?</button>
+      </div>
+      <div id="watchlistTable"></div>
+      <div id="liveStatus"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Catching Momentum Right Now</h2>
+        <span>
+          <button class="secondary refresh-btn" onclick="loadMomentum()">Refresh</button>
+          <span class="spinner" id="momentumSpinner" style="display:none;"></span>
+        </span>
+      </div>
+      <div class="subtitle" style="margin-bottom:12px;">Scanned across the S&amp;P 500 (~500 stocks) — the broadest free scan available — filtered to moves of &plusmn;5% or more on 2x+ average volume.</div>
+      <div id="momentumList"></div>
+    </div>
+
+  </div>
+
+  <div class="side-column">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Market News</h2>
+        <span>
+          <button class="secondary refresh-btn" onclick="loadNews()">Refresh</button>
+          <span class="spinner" id="newsSpinner" style="display:none;"></span>
+        </span>
+      </div>
+      <div id="newsList"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="strategyModalOverlay" onclick="if (event.target === this) closeStrategyInfo()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Strategy Guide</h2>
+      <button class="modal-close" onclick="closeStrategyInfo()">&times;</button>
+    </div>
+    <div class="modal-subtitle">What each column checks for, in plain English.</div>
+    <div id="strategyInfoList"></div>
+  </div>
+</div>
+
+<script>
+let STRATEGIES = [];
+const MIN_SPINNER_MS = 500;
+
+const STRATEGY_INFO = {
+  MA50_Cross: "Price just crossed above its 50-day moving average — an early shift from downtrend to uptrend.",
+  RSI_Oversold: "RSI(14) dropped below 30 — the stock has sold off hard and may be due for a bounce.",
+  MACD_Bullish_Cross: "The MACD line crossed above its signal line — momentum is turning upward.",
+  Breakout_20D: "Price closed above its highest close of the last 20 days — a fresh short-term high.",
+  Pullback_to_MA50: "Price is in a long-term uptrend (above its 200-day average) and has dipped back within 2% of its 50-day average — a classic buy-the-dip spot.",
+  Combo_Trend: "MACD Bullish Cross and Breakout 20D firing together — a stronger, trend-following signal.",
+  Combo_MeanReversion: "RSI Oversold while still above the 200-day average — a short-term dip inside a longer uptrend.",
+};
+
+function openStrategyInfo() {
+  document.getElementById('strategyInfoList').innerHTML = STRATEGIES.map(s => `
+    <div class="strategy-info-item">
+      <div class="strategy-info-name">${s.replace(/_/g, ' ')}</div>
+      <div class="strategy-info-desc">${STRATEGY_INFO[s] || ''}</div>
+    </div>
+  `).join('');
+  document.getElementById('strategyModalOverlay').classList.add('open');
+}
+
+function closeStrategyInfo() {
+  document.getElementById('strategyModalOverlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeStrategyInfo();
+});
+
+async function loadStrategies() {
+  const res = await fetch('/api/strategies');
+  STRATEGIES = await res.json();
+}
+
+async function loadWatchlist() {
+  const res = await fetch('/api/watchlist');
+  const data = await res.json();
+  renderWatchlist(data);
+}
+
+function renderWatchlist(data) {
+  const tickers = Object.keys(data);
+  const container = document.getElementById('watchlistTable');
+
+  if (tickers.length === 0) {
+    container.innerHTML = '<div class="empty">No tickers yet — add one above.</div>';
+    return;
+  }
+
+  let html = '<table><tr><th>Ticker</th><th>Price</th><th>Change</th>';
+  STRATEGIES.forEach(s => html += `<th>${s.replace(/_/g, ' ')}</th>`);
+  html += '<th></th></tr>';
+
+  tickers.forEach(ticker => {
+    html += `<tr>
+      <td>${ticker}</td>
+      <td class="live-price" id="price-${ticker}">—</td>
+      <td class="live-change-na" id="change-${ticker}">—</td>`;
+    STRATEGIES.forEach(strategy => {
+      const enabled = data[ticker][strategy];
+      html += `<td><input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleStrategy('${ticker}', '${strategy}', this.checked)"></td>`;
+    });
+    html += `<td><button class="danger" onclick="removeTicker('${ticker}')">Remove</button></td></tr>`;
+  });
+
+  html += '</table>';
+  container.innerHTML = html;
+}
+
+async function addTicker() {
+  const input = document.getElementById('tickerInput');
+  const ticker = input.value.trim().toUpperCase();
+  if (!ticker) return;
+
+  await fetch('/api/watchlist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticker })
+  });
+
+  input.value = '';
+  await loadWatchlist();
+  loadLivePrices();
+}
+
+async function removeTicker(ticker) {
+  await fetch(`/api/watchlist/${ticker}`, { method: 'DELETE' });
+  loadWatchlist();
+}
+
+async function toggleStrategy(ticker, strategy, enabled) {
+  await fetch('/api/toggle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticker, strategy, enabled })
+  });
+}
+
+async function checkNow() {
+  const status = document.getElementById('status');
+  status.textContent = 'Checking...';
+  const res = await fetch('/api/check-now', { method: 'POST' });
+  const data = await res.json();
+  status.textContent = data.count > 0
+    ? `${data.count} alert(s) triggered — check your email.`
+    : 'No triggers right now.';
+  loadAlerts();
+  setTimeout(() => status.textContent = '', 5000);
+}
+
+function renderAlertItem(a) {
+  return `
+    <div class="alert-item">
+      <div>${a.message}</div>
+      <div class="alert-date">${a.created_at}</div>
+    </div>
+  `;
+}
+
+async function loadAlerts() {
+  const res = await fetch('/api/alerts');
+  const alerts = await res.json();
+  const container = document.getElementById('alertsList');
+
+  if (alerts.length === 0) {
+    container.innerHTML = '<div class="empty">No alerts yet.</div>';
+    return;
+  }
+
+  // alerts are ordered newest-first; treat the most recent alert_date as
+  // "current" and tuck everything before that behind a dropdown, so the
+  // panel doesn't just grow forever.
+  const latestDate = alerts[0].alert_date;
+  const current = alerts.filter(a => a.alert_date === latestDate);
+  const previous = alerts.filter(a => a.alert_date !== latestDate);
+
+  let html = current.map(renderAlertItem).join('');
+
+  if (previous.length > 0) {
+    html += `
+      <details class="alert-history">
+        <summary>Previous alerts (${previous.length})</summary>
+        ${previous.map(renderAlertItem).join('')}
+      </details>
+    `;
+  }
+
+  container.innerHTML = html;
+}
+
+async function loadNews() {
+  const container = document.getElementById('newsList');
+  const spinner = document.getElementById('newsSpinner');
+
+  // Only show the placeholder on the very first load — on a manual
+  // Refresh, keep the existing list on screen instead of collapsing the
+  // panel to one line, which was causing a jarring layout jump.
+  if (!container.dataset.loaded) {
+    container.innerHTML = '<div class="empty">Loading...</div>';
+  }
+  spinner.style.display = 'inline-block';
+
+  // Both /api/news and /api/momentum below are cached server-side, so a
+  // refresh often comes back in a handful of milliseconds — too fast for
+  // the spinner to actually paint before it's hidden again, which just
+  // looks like the button did nothing. MIN_SPINNER_MS forces the spinner
+  // to stay visible at least this long so a click always shows feedback,
+  // while a genuinely slow request just runs until it's actually done.
+  const fetchAndRender = (async () => {
+    const res = await fetch('/api/news');
+    const news = await res.json();
+
+    if (news.length === 0) {
+      container.innerHTML = '<div class="empty">No news available right now.</div>';
+    } else {
+      container.innerHTML = news.map(n => `
+        <div class="news-item">
+          <a href="${n.link || '#'}" target="_blank" rel="noopener">${n.title}</a>
+          <div class="news-publisher">${n.publisher || ''}</div>
+        </div>
+      `).join('');
+    }
+    container.dataset.loaded = 'true';
+  })();
+
+  try {
+    await Promise.all([fetchAndRender, new Promise(resolve => setTimeout(resolve, MIN_SPINNER_MS))]);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+async function loadMomentum() {
+  const container = document.getElementById('momentumList');
+  const spinner = document.getElementById('momentumSpinner');
+
+  if (!container.dataset.loaded) {
+    container.innerHTML = '<div class="empty">Scanning...</div>';
+  }
+  spinner.style.display = 'inline-block';
+
+  const fetchAndRender = (async () => {
+    const res = await fetch('/api/momentum');
+    const movers = await res.json();
+
+    if (movers.length === 0) {
+      container.innerHTML = '<div class="empty">Nothing showing unusual momentum right now.</div>';
+    } else {
+      container.innerHTML = movers.map(m => {
+        const changeClass = m.pct_change >= 0 ? 'mover-change-pos' : 'mover-change-neg';
+        const sign = m.pct_change >= 0 ? '+' : '';
+        return `
+          <div class="mover-row">
+            <span class="mover-ticker">${m.ticker}</span>
+            <span class="mover-price">$${m.price}</span>
+            <span class="${changeClass}">${sign}${m.pct_change}%</span>
+            <span class="mover-vol">${m.relative_volume}x volume</span>
+          </div>
+        `;
+      }).join('');
+    }
+    container.dataset.loaded = 'true';
+  })();
+
+  try {
+    await Promise.all([fetchAndRender, new Promise(resolve => setTimeout(resolve, MIN_SPINNER_MS))]);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+async function loadLivePrices() {
+  const res = await fetch('/api/live-prices');
+  const prices = await res.json();
+  const statusEl = document.getElementById('liveStatus');
+
+  if (prices._error) {
+    if (statusEl) statusEl.textContent = prices._error;
+    return;
+  }
+
+  Object.keys(prices).forEach(ticker => {
+    const priceEl = document.getElementById(`price-${ticker}`);
+    const changeEl = document.getElementById(`change-${ticker}`);
+    if (!priceEl || !changeEl) return;
+
+    const { price, pct_change } = prices[ticker];
+    priceEl.textContent = `$${price}`;
+
+    const sign = pct_change >= 0 ? '+' : '';
+    changeEl.textContent = `${sign}${pct_change}%`;
+    changeEl.className = pct_change >= 0 ? 'live-change-pos' : 'live-change-neg';
+  });
+
+  if (statusEl) {
+    const now = new Date().toLocaleTimeString();
+    statusEl.textContent = `Live prices updated ${now} (updates every ${LIVE_PRICE_INTERVAL_MS / 1000}s while this page is open)`;
+  }
+}
+
+// This shares one Alpaca market-data key across every user on the site (see
+// alpaca_data.py), so the floor here is set by that account's rate limit,
+// not by the browser — too fast and everyone's live prices would start
+// failing at once. 5s keeps a comfortable margin under Alpaca's free-tier
+// limit even with several people viewing the page at the same time.
+const LIVE_PRICE_INTERVAL_MS = 5000;
+
+async function init() {
+  await loadStrategies();
+  await loadWatchlist();
+  await loadAlerts();
+  await loadNews();
+  await loadMomentum();
+  await loadLivePrices();
+  setInterval(loadLivePrices, LIVE_PRICE_INTERVAL_MS);
+}
+
+init();
+</script>
+
+</body>
+</html>

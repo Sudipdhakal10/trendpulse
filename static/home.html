@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrendPulse</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #0a0c11;
+    --ash: #12151c;
+    --ash-line: #232733;
+    --pulse: #35e28a;
+    --signal: #ff9f40;
+    --ink: #eef0f4;
+    --ink-dim: #8b93a3;
+    --action: #3b6ef6;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--pulse); outline-offset: 3px; }
+
+  .hero {
+    position: relative;
+    min-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 20px;
+    overflow: hidden;
+  }
+
+  .pulse-track {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 200%;
+    transform: translateY(-50%);
+    opacity: 0.35;
+    animation: scrollPulse 14s linear infinite;
+  }
+
+  @keyframes scrollPulse {
+    from { transform: translateY(-50%) translateX(0); }
+    to   { transform: translateY(-50%) translateX(-50%); }
+  }
+
+  .pulse-track svg { display: block; width: 1200px; height: 220px; }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--signal);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    font-weight: 600;
+  }
+
+  .wordmark {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: clamp(48px, 9vw, 96px);
+    letter-spacing: -2px;
+    margin: 0;
+    line-height: 1;
+  }
+
+  .wordmark span { color: var(--pulse); }
+
+  .tagline {
+    font-size: clamp(16px, 2.4vw, 20px);
+    color: var(--ink-dim);
+    margin: 22px 0 36px;
+    font-weight: 400;
+  }
+
+  .cta {
+    display: inline-block;
+    background: var(--action);
+    color: white;
+    text-decoration: none;
+    padding: 14px 32px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'IBM Plex Sans', sans-serif;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+
+  .cta:hover { background: #2f57c9; transform: translateY(-1px); }
+
+  .ticker {
+    border-top: 1px solid var(--ash-line);
+    border-bottom: 1px solid var(--ash-line);
+    background: var(--ash);
+    overflow: hidden;
+    white-space: nowrap;
+    padding: 14px 0;
+  }
+
+  .ticker-track {
+    display: inline-block;
+    animation: scrollTicker 40s linear infinite;
+  }
+
+  @keyframes scrollTicker {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  .ticker-item {
+    display: inline-block;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    letter-spacing: 1.5px;
+    color: var(--signal);
+    text-transform: uppercase;
+    margin: 0 36px;
+  }
+
+  .ticker-item::before {
+    content: "◆";
+    color: var(--ash-line);
+    margin-right: 36px;
+  }
+
+  .features {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 90px 24px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .feature-card {
+    background: var(--ash);
+    border: 1px solid var(--ash-line);
+    border-radius: 10px;
+    padding: 28px 24px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .feature-card:hover { border-color: var(--pulse); transform: translateY(-2px); }
+
+  .feature-label {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--pulse);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-weight: 600;
+  }
+
+  .feature-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 10px;
+  }
+
+  .feature-desc {
+    font-size: 14px;
+    color: var(--ink-dim);
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  footer {
+    text-align: center;
+    padding: 40px 20px 60px;
+    color: var(--ink-dim);
+    font-size: 12.5px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.5px;
+  }
+
+  footer a { color: var(--signal); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 760px) {
+    .features { grid-template-columns: 1fr; padding: 60px 20px; }
+    .pulse-track svg { width: 900px; height: 160px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-track, .ticker-track { animation: none; }
+  }
+
+  .tp-brand {
+    position: fixed;
+    top: 16px;
+    left: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    line-height: 1.3;
+  }
+  .tp-logo { flex-shrink: 0; display: block; }
+  .tp-brand-name { display: block; font-weight: 700; font-size: 14px; color: var(--ink); letter-spacing: -0.3px; }
+  .tp-brand-tag { display: block; font-size: 10.5px; color: var(--ink-dim); }
+
+  .hero-logo {
+    display: block;
+    margin: 0 auto 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="tp-brand">
+  <svg class="tp-logo" width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="0.5" y="0.5" width="27" height="27" rx="7" fill="#12151c" stroke="#2a2e38"/>
+    <path d="M4 16H9L11 10L14.5 20L17 8L19.5 16H24" stroke="#35e28a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="17" cy="8" r="1.7" fill="#ff9f40"/>
+  </svg>
+  <div>
+    <span class="tp-brand-name">TrendPulse</span>
+    <span class="tp-brand-tag">Trade the plan, not the moment.</span>
+  </div>
+</div>
+
+<section class="hero">
+  <div class="pulse-track" aria-hidden="true">
+    <svg viewBox="0 0 1200 220" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,110 L140,110 L165,110 L180,40 L200,180 L220,60 L240,110 L400,110
+               L560,110 L585,110 L600,50 L620,170 L640,70 L660,110 L820,110
+               L960,110 L985,60 L1005,150 L1025,90 L1045,110 L1200,110"
+            fill="none" stroke="#35e28a" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M1200,110 L1340,110 L1365,110 L1380,40 L1400,180 L1420,60 L1440,110 L1600,110
+               L1760,110 L1785,110 L1800,50 L1820,170 L1840,70 L1860,110 L2020,110
+               L2160,110 L2185,60 L2205,150 L2225,90 L2245,110 L2400,110"
+            fill="none" stroke="#35e28a" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <div class="hero-content">
+    <div class="eyebrow">Rule-based swing trading</div>
+    <svg class="hero-logo" width="56" height="56" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="0.5" y="0.5" width="27" height="27" rx="7" fill="#12151c" stroke="#2a2e38"/>
+      <path d="M4 16H9L11 10L14.5 20L17 8L19.5 16H24" stroke="#35e28a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="17" cy="8" r="1.7" fill="#ff9f40"/>
+    </svg>
+    <h1 class="wordmark">Trend<span>Pulse</span></h1>
+    <p class="tagline">Trade the plan, not the moment.</p>
+    <a class="cta" href="/login">Log In</a>
+  </div>
+</section>
+
+<div class="ticker">
+  <div class="ticker-track">
+    <span class="ticker-item">Plan the exit before the entry</span>
+    <span class="ticker-item">Risk only what you can lose twice</span>
+    <span class="ticker-item">The setup doesn't care how you feel</span>
+    <span class="ticker-item">Size the position, not the hope</span>
+    <span class="ticker-item">No signal, no trade</span>
+    <span class="ticker-item">The journal remembers what you forget</span>
+    <span class="ticker-item">Plan the exit before the entry</span>
+    <span class="ticker-item">Risk only what you can lose twice</span>
+    <span class="ticker-item">The setup doesn't care how you feel</span>
+    <span class="ticker-item">Size the position, not the hope</span>
+    <span class="ticker-item">No signal, no trade</span>
+    <span class="ticker-item">The journal remembers what you forget</span>
+  </div>
+</div>
+
+<div class="features">
+  <div class="feature-card">
+    <div class="feature-label">Watchlist</div>
+    <h2 class="feature-title">Your rules, your stocks</h2>
+    <p class="feature-desc">Set entry rules per ticker — moving average crosses, RSI, breakouts, or your own combinations. Get emailed the moment one actually triggers.</p>
+  </div>
+  <div class="feature-card">
+    <div class="feature-label">AutoTrade</div>
+    <h2 class="feature-title">A bot that follows the plan</h2>
+    <p class="feature-desc">A daily RSI rotation strategy trades on your behalf — exits before entries, capped position sizing, paper trading by default.</p>
+  </div>
+  <div class="feature-card">
+    <div class="feature-label">Live Data</div>
+    <h2 class="feature-title">Prices, news, and momentum</h2>
+    <p class="feature-desc">Near-real-time price movement, market headlines, and a scan for what's catching unusual volume right now.</p>
+  </div>
+</div>
+
+<footer>
+  Built for one desk. One trader. <a href="/login">Log in →</a>
+</footer>
+
+</body>
+</html>

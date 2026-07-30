@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TrendPulse — Profile</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+    max-width: 1280px;
+    margin: 64px auto 40px;
+    padding: 0 20px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #999; margin-bottom: 24px; font-size: 14px; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .side-column { position: sticky; top: 20px; }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+    .side-column { position: static; }
+  }
+  .panel {
+    background: #171a21;
+    border: 1px solid #2a2e38;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 15px; margin-top: 0; color: #ccc; }
+  label { font-size: 13px; color: #999; display: block; margin-bottom: 6px; margin-top: 14px; }
+  label:first-of-type { margin-top: 0; }
+  input {
+    width: 100%;
+    background: #0f1115;
+    border: 1px solid #333;
+    color: #eee;
+    padding: 9px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+  }
+  .field-row { display: flex; gap: 12px; }
+  .field-row > div { flex: 1; min-width: 0; }
+  .readonly-field { color: #777; font-size: 14px; padding: 9px 0; }
+  button {
+    background: #3b6ef6;
+    color: white;
+    border: none;
+    padding: 9px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-top: 18px;
+  }
+  button:hover { background: #2f57c9; }
+  .status { font-size: 13px; margin-left: 10px; }
+  .status-ok { color: #7fdc9c; }
+  .status-error { color: #f87171; }
+  .account-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #262a33; font-size: 13px; }
+  .account-row:last-child { border-bottom: none; }
+  .account-label { color: #888; }
+  .account-value { font-weight: 600; }
+  .nav { margin-bottom: 20px; display: flex; align-items: center; }
+  .nav a { color: #999; text-decoration: none; margin-right: 20px; font-size: 14px; padding-bottom: 4px; }
+  .nav a.active { color: #e6e6e6; border-bottom: 2px solid #3b6ef6; }
+  .nav a:hover { color: #e6e6e6; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+  .nav-icon { margin-right: 0 !important; display: flex; align-items: center; padding-bottom: 4px; }
+  .nav-icon svg { display: block; }
+  .tp-brand {
+    position: fixed;
+    top: 16px;
+    left: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    line-height: 1.3;
+  }
+  .tp-logo { flex-shrink: 0; display: block; }
+  .tp-brand-name { display: block; font-weight: 700; font-size: 14px; color: #e6e6e6; letter-spacing: -0.3px; }
+  .tp-brand-tag { display: block; font-size: 10.5px; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<div class="tp-brand">
+  <svg class="tp-logo" width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="0.5" y="0.5" width="27" height="27" rx="7" fill="#12151c" stroke="#2a2e38"/>
+    <path d="M4 16H9L11 10L14.5 20L17 8L19.5 16H24" stroke="#35e28a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="17" cy="8" r="1.7" fill="#ff9f40"/>
+  </svg>
+  <div>
+    <span class="tp-brand-name">TrendPulse</span>
+    <span class="tp-brand-tag">Trade the plan, not the moment.</span>
+  </div>
+</div>
+
+<h1>Profile</h1>
+<div class="nav">
+  <a href="/watchlist">Watchlist</a>
+  <a href="/autotrade">AutoTrade</a>
+  <div class="nav-right">
+    <a href="/profile" class="nav-icon active" title="Profile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+      </svg>
+    </a>
+    <a href="/logout">Log Out</a>
+  </div>
+</div>
+<div class="subtitle">Your account details and login.</div>
+
+<div class="layout">
+
+  <div class="main-column">
+
+    <div class="panel">
+      <h2>Your Details</h2>
+      <label>Username</label>
+      <div class="readonly-field" id="usernameField"></div>
+
+      <form id="profileForm">
+        <div class="field-row">
+          <div>
+            <label for="firstName">First Name</label>
+            <input type="text" id="firstName" autocomplete="given-name">
+          </div>
+          <div>
+            <label for="lastName">Last Name</label>
+            <input type="text" id="lastName" autocomplete="family-name">
+          </div>
+        </div>
+
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required>
+
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" autocomplete="tel" placeholder="e.g. (555) 123-4567">
+
+        <label for="street">Street Address</label>
+        <input type="text" id="street" autocomplete="address-line1">
+
+        <div class="field-row">
+          <div style="flex: 2;">
+            <label for="city">City</label>
+            <input type="text" id="city" autocomplete="address-level2">
+          </div>
+          <div>
+            <label for="state">State</label>
+            <input type="text" id="state" autocomplete="address-level1" maxlength="2" placeholder="e.g. CA">
+          </div>
+          <div>
+            <label for="zipCode">ZIP Code</label>
+            <input type="text" id="zipCode" autocomplete="postal-code">
+          </div>
+        </div>
+
+        <button type="submit">Save Details</button>
+        <span class="status" id="profileStatus"></span>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Change Password</h2>
+      <form id="passwordForm">
+        <label for="currentPassword">Current Password</label>
+        <input type="password" id="currentPassword" autocomplete="current-password" required>
+
+        <label for="newPassword">New Password</label>
+        <input type="password" id="newPassword" autocomplete="new-password" required>
+        <div style="font-size:11.5px; color:#6b7280; margin-top:5px;">At least 8 characters</div>
+
+        <label for="confirmPassword">Confirm New Password</label>
+        <input type="password" id="confirmPassword" autocomplete="new-password" required>
+
+        <button type="submit">Change Password</button>
+        <span class="status" id="passwordStatus"></span>
+      </form>
+    </div>
+
+  </div>
+
+  <div class="side-column">
+    <div class="panel">
+      <h2>Account</h2>
+      <div class="account-row">
+        <span class="account-label">Username</span>
+        <span class="account-value" id="accountUsername">—</span>
+      </div>
+      <div class="account-row">
+        <span class="account-label">Member Since</span>
+        <span class="account-value" id="accountCreatedAt">—</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+async function loadProfile() {
+  const res = await fetch('/api/profile');
+  const data = await res.json();
+
+  document.getElementById('usernameField').textContent = data.username;
+  document.getElementById('firstName').value = data.first_name || '';
+  document.getElementById('lastName').value = data.last_name || '';
+  document.getElementById('email').value = data.email || '';
+  document.getElementById('phone').value = data.phone || '';
+  document.getElementById('street').value = data.street || '';
+  document.getElementById('city').value = data.city || '';
+  document.getElementById('state').value = data.state || '';
+  document.getElementById('zipCode').value = data.zip_code || '';
+
+  document.getElementById('accountUsername').textContent = data.username;
+  document.getElementById('accountCreatedAt').textContent = (data.created_at || '').split(' ')[0] || '—';
+}
+
+function showStatus(elId, message, ok) {
+  const el = document.getElementById(elId);
+  el.textContent = message;
+  el.className = 'status ' + (ok ? 'status-ok' : 'status-error');
+  setTimeout(() => { el.textContent = ''; }, 4000);
+}
+
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const res = await fetch('/api/profile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      first_name: document.getElementById('firstName').value.trim(),
+      last_name: document.getElementById('lastName').value.trim(),
+      email: document.getElementById('email').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+      street: document.getElementById('street').value.trim(),
+      city: document.getElementById('city').value.trim(),
+      state: document.getElementById('state').value.trim(),
+      zip_code: document.getElementById('zipCode').value.trim(),
+    })
+  });
+
+  if (res.ok) {
+    showStatus('profileStatus', 'Saved.', true);
+  } else {
+    const data = await res.json().catch(() => ({}));
+    showStatus('profileStatus', data.detail || 'Could not save details.', false);
+  }
+});
+
+document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const currentPassword = document.getElementById('currentPassword').value;
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+
+  if (newPassword !== confirmPassword) {
+    showStatus('passwordStatus', 'New passwords do not match.', false);
+    return;
+  }
+
+  const res = await fetch('/api/profile/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+  });
+
+  if (res.ok) {
+    document.getElementById('passwordForm').reset();
+    showStatus('passwordStatus', 'Password changed.', true);
+  } else {
+    const data = await res.json().catch(() => ({}));
+    showStatus('passwordStatus', data.detail || 'Could not change password.', false);
+  }
+});
+
+loadProfile();
+</script>
+
+</body>
+</html>
