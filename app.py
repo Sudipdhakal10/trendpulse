@@ -420,35 +420,6 @@ def api_change_password(payload: PasswordChange, user_id: int = Depends(require_
     return {"status": "ok"}
 
 
-# ============ One-time database import (delete this block after use) ============
-#
-# For moving a local watchlist.db onto a fresh deploy's persistent volume,
-# once, right after the first deploy and before anyone else has registered
-# on the live site. Inert unless DB_IMPORT_TOKEN is set as an environment
-# variable — never set that in .env; set it only in Railway's dashboard,
-# use it once, then remove it there (and delete this route + its import
-# in db.py) once you've confirmed the import worked.
-
-DB_IMPORT_TOKEN = os.environ.get("DB_IMPORT_TOKEN", "")
-
-
-@app.post("/admin/import-db")
-async def admin_import_db(request: Request, confirm: bool = False):
-    if not DB_IMPORT_TOKEN or request.headers.get("X-Import-Token") != DB_IMPORT_TOKEN:
-        raise HTTPException(status_code=404)
-    if not confirm:
-        raise HTTPException(status_code=400, detail="Pass ?confirm=true to overwrite the live database.")
-
-    body = await request.body()
-    if not body:
-        raise HTTPException(status_code=400, detail="No file data received.")
-
-    with open(config.DB_PATH, "wb") as f:
-        f.write(body)
-
-    return {"status": "ok", "bytes_written": len(body)}
-
-
 # ============ Serve the frontend ============
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

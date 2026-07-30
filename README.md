@@ -124,26 +124,23 @@ This uses Railway (railway.com) — a hosting platform that runs your app
 ### Carrying over your existing local accounts and data
 
 A brand-new deploy starts with an empty database — your local accounts,
-watchlists, and AutoTrade setup won't just appear. `app.py` has a
-one-time import route for exactly this (`/admin/import-db`), disabled
-by default:
+watchlists, and AutoTrade setup won't just appear on their own.
 
-1. In Railway → Settings → Variables, add `DB_IMPORT_TOKEN` = some long
-   random string (only in Railway's dashboard — never put this in
-   `.env`). Deploy so it takes effect.
-2. From your local machine, upload your local `watchlist.db`:
-   ```
-   curl -X POST "https://your-app.up.railway.app/admin/import-db?confirm=true" \
-     -H "X-Import-Token: the-value-you-set-above" \
-     --data-binary @watchlist.db
-   ```
-   This **overwrites** whatever's on the live volume — do this before
-   anyone else registers on the live site.
-3. Confirm it worked (log in on the live URL with an existing account).
-4. **Remove `DB_IMPORT_TOKEN` from Railway's variables**, and delete the
-   `/admin/import-db` route from `app.py` (and its `DB_IMPORT_TOKEN`
-   line) in a follow-up commit — it's a one-time tool, not something to
-   leave reachable indefinitely.
+This app used to have a one-time `/admin/import-db` route for exactly
+this, protected by a `DB_IMPORT_TOKEN` env var. It's already served its
+purpose (the original deploy's data was migrated with it) and has since
+been removed from the code and from Railway's variables — it's not
+there anymore, on purpose. If you ever need to do this again from
+scratch on a new environment:
+
+1. Temporarily re-add a route like it (accept a raw file upload behind
+   a secret token header, write the bytes to `config.DB_PATH`), guarded
+   so it does nothing unless that token env var is set.
+2. Set the token only in Railway's dashboard (never in `.env`), deploy,
+   `curl --data-binary @watchlist.db` the route with the token header,
+   confirm you can log in with an existing account on the live URL.
+3. Remove the token from Railway's variables and delete the route again
+   — treat it as strictly one-time, not a permanent feature.
 
 ### Before this is genuinely public
 
