@@ -122,24 +122,38 @@ def get_momentum_movers(limit=10, min_relative_volume=2.0, min_pct_change=5.0):
     return refresh_momentum_cache(limit=limit, min_relative_volume=min_relative_volume, min_pct_change=min_pct_change)
 
 
+MOMENTUM_CHUNK_SIZE = 50  # tickers per yf.download batch -- bounds peak memory
+MOMENTUM_CHUNK_THREADS = 8  # bounded concurrency within a chunk (was unbounded)
+
+
 def refresh_momentum_cache(limit=10, min_relative_volume=2.0, min_pct_change=5.0):
     """Does the actual ~500-ticker scan and updates the cache. Split out
     from get_momentum_movers so app.py's scheduler can call this directly
     on a timer, keeping the cache warm without ever making a page request
-    wait on the ~40-second scan."""
+    wait on the ~40-second scan.
+
+    Downloads the universe in small chunks rather than one ~500-ticker
+    batch -- holding all of that OHLCV data in memory at once was enough
+    to push a memory-constrained host over its limit. Chunking keeps peak
+    memory bounded no matter how large the universe is."""
     universe = get_momentum_universe()
     movers = []
 
-    try:
-        data = yf.download(universe, period="2mo", group_by="ticker", threads=True, progress=False)
-    except Exception as e:
-        print(f"Momentum scan download failed: {e}")
-        data = None
+    for start in range(0, len(universe), MOMENTUM_CHUNK_SIZE):
+        chunk = universe[start:start + MOMENTUM_CHUNK_SIZE]
 
-    if data is not None and not data.empty:
+        try:
+            data = yf.download(chunk, period="2mo", group_by="ticker", threads=MOMENTUM_CHUNK_THREADS, progress=False)
+        except Exception as e:
+            print(f"Momentum scan chunk download failed: {e}")
+            continue
+
+        if data is None or data.empty:
+            continue
+
         is_multi = isinstance(data.columns, pd.MultiIndex)
 
-        for ticker in universe:
+        for ticker in chunk:
             try:
                 df = data[ticker] if is_multi else data
                 df = df.dropna(subset=["Close", "Volume"])
@@ -162,6 +176,8 @@ def refresh_momentum_cache(limit=10, min_relative_volume=2.0, min_pct_change=5.0
                     })
             except Exception:
                 continue
+
+        del data  # done with this chunk's data before the next one is fetched
 
     movers.sort(key=lambda m: m["pct_change"], reverse=True)
     result = movers[:limit]

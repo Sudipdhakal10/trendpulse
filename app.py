@@ -10,7 +10,7 @@ Then open http://localhost:8000 in your browser.
 import os
 import re
 import smtplib
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -219,8 +219,13 @@ scheduler.add_job(scheduled_autotrade_run, "cron", hour=int(autotrade_hour), min
 
 # The momentum scan covers ~500 tickers and takes tens of seconds, so it
 # runs on a timer in the background instead of on a page request — by the
-# time anyone loads the Watchlist page, the cache is already warm.
-scheduler.add_job(market_data.refresh_momentum_cache, "interval", minutes=15, next_run_time=datetime.now())
+# time anyone loads the Watchlist page, the cache is already warm. Delayed
+# 90s past startup rather than firing immediately, so it doesn't pile its
+# own memory use onto the app's own boot (a real cause of an OOM restart).
+scheduler.add_job(
+    market_data.refresh_momentum_cache, "interval", minutes=15,
+    next_run_time=datetime.now() + timedelta(seconds=90),
+)
 
 scheduler.start()
 
