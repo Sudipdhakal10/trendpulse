@@ -15,6 +15,7 @@ import market_data
 SEARCH_CACHE_TTL_SECONDS = 5 * 60
 SNAPSHOT_CACHE_TTL_SECONDS = 5 * 60
 CHART_CACHE_TTL_SECONDS = 5 * 60
+INTRADAY_CHART_CACHE_TTL_SECONDS = 60  # 1D range: short TTL so the Shop page's live-updating chart actually sees new bars
 NEWS_CACHE_TTL_SECONDS = 15 * 60
 EARNINGS_CACHE_TTL_SECONDS = 60 * 60
 FINANCIALS_CACHE_TTL_SECONDS = 24 * 60 * 60
@@ -152,7 +153,8 @@ def get_stock_chart(ticker, range_key):
             points.append({"t": ts.isoformat(), "c": close})
         return points
 
-    return _cached(_chart_cache, f"{ticker}:{range_key}", CHART_CACHE_TTL_SECONDS, fetch)
+    ttl = INTRADAY_CHART_CACHE_TTL_SECONDS if range_key == "1D" else CHART_CACHE_TTL_SECONDS
+    return _cached(_chart_cache, f"{ticker}:{range_key}", ttl, fetch)
 
 
 def get_stock_earnings(ticker):
