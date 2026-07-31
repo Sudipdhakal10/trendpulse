@@ -27,6 +27,18 @@ _news_cache = {}
 _earnings_cache = {}
 _financials_cache = {}
 
+# Unlike the rest of this app's caches (keyed by a bounded watchlist), the
+# Shop page lets anyone search ANY ticker/query -- with no eviction, every
+# distinct query or symbol ever looked up (across every visitor, forever)
+# would sit in memory permanently. That's exactly the kind of slow leak
+# that previously took the whole site down with an OOM crash, just on a
+# much longer fuse. CACHE_CLEANUP_INTERVAL_SECONDS sweeps expired entries
+# periodically; MAX_CACHE_ENTRIES is a hard ceiling so a burst of unique
+# queries between sweeps still can't grow a cache without bound.
+CACHE_CLEANUP_INTERVAL_SECONDS = 10 * 60
+MAX_CACHE_ENTRIES = 500
+_last_cache_cleanup = 0
+
 # yfinance period/interval pairs per chart range button.
 CHART_RANGES = {
     "1D": {"period": "1d", "interval": "5m"},
@@ -38,12 +50,40 @@ CHART_RANGES = {
     "5Y": {"period": "5y", "interval": "1wk"},
 }
 
+_ALL_CACHES_WITH_TTL = [
+    (_search_cache, SEARCH_CACHE_TTL_SECONDS),
+    (_snapshot_cache, SNAPSHOT_CACHE_TTL_SECONDS),
+    (_chart_cache, CHART_CACHE_TTL_SECONDS),  # covers 1D's shorter TTL too -- those entries just get physically removed a bit later than they went stale, which is harmless since _cached() already refuses to serve stale data
+    (_news_cache, NEWS_CACHE_TTL_SECONDS),
+    (_earnings_cache, EARNINGS_CACHE_TTL_SECONDS),
+    (_financials_cache, FINANCIALS_CACHE_TTL_SECONDS),
+]
+
+
+def _cleanup_stale_caches_if_due():
+    global _last_cache_cleanup
+    now = time.time()
+    if now - _last_cache_cleanup < CACHE_CLEANUP_INTERVAL_SECONDS:
+        return
+    _last_cache_cleanup = now
+
+    for cache, ttl in _ALL_CACHES_WITH_TTL:
+        stale_keys = [k for k, v in cache.items() if now - v["timestamp"] > ttl]
+        for k in stale_keys:
+            del cache[k]
+
 
 def _cached(cache, key, ttl, fetch_fn):
+    _cleanup_stale_caches_if_due()
+
     now = time.time()
     entry = cache.get(key)
     if entry is not None and (now - entry["timestamp"]) < ttl:
         return entry["data"]
+
+    if len(cache) >= MAX_CACHE_ENTRIES:
+        cache.clear()
+
     data = fetch_fn()
     cache[key] = {"data": data, "timestamp": now}
     return data
