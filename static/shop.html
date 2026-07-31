@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrendPulse — Shop</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+    max-width: 1280px;
+    margin: 64px auto 40px;
+    padding: 0 20px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #999; margin-bottom: 24px; font-size: 14px; }
+  .panel {
+    background: #171a21;
+    border: 1px solid #2a2e38;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 15px; margin-top: 0; color: #ccc; }
+  input[type=text] {
+    background: #0f1115;
+    border: 1px solid #333;
+    color: #eee;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  button {
+    background: #3b6ef6;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:hover { background: #2f57c9; }
+  button.secondary { background: #2a2e38; }
+  button.secondary:hover { background: #3a3f4c; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .empty { color: #777; font-size: 13px; padding: 10px 0; }
+  #status { font-size: 13px; color: #7fdc9c; margin-left: 10px; }
+  .nav { margin-bottom: 20px; display: flex; align-items: center; }
+  .nav a { color: #999; text-decoration: none; margin-right: 20px; font-size: 14px; padding-bottom: 4px; }
+  .nav a.active { color: #e6e6e6; border-bottom: 2px solid #3b6ef6; }
+  .nav a:hover { color: #e6e6e6; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+  .nav-icon { margin-right: 0 !important; display: flex; align-items: center; padding-bottom: 4px; }
+  .nav-icon svg { display: block; }
+  .tp-brand {
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    line-height: 1.3;
+  }
+  .tp-logo { flex-shrink: 0; display: block; }
+  .tp-brand-name { display: block; font-weight: 700; font-size: 14px; color: #e6e6e6; letter-spacing: -0.3px; }
+  .tp-brand-tag { display: block; font-size: 10.5px; color: #6b7280; }
+
+  /* Search */
+  .search-wrap { position: relative; max-width: 480px; }
+  .search-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #171a21;
+    border: 1px solid #2a2e38;
+    border-radius: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 40;
+    display: none;
+  }
+  .search-dropdown.open { display: block; }
+  .search-result {
+    padding: 9px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #21252e;
+    font-size: 13px;
+  }
+  .search-result:last-child { border-bottom: none; }
+  .search-result:hover { background: #1e222c; }
+  .search-result-symbol { font-weight: 600; margin-right: 8px; }
+  .search-result-name { color: #999; }
+  .search-result-exchange { color: #666; font-size: 11px; float: right; }
+
+  /* Stock header */
+  .stock-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
+  .stock-name { font-size: 19px; font-weight: 700; }
+  .stock-ticker { color: #888; font-size: 14px; }
+  .stock-meta { color: #888; font-size: 12.5px; width: 100%; }
+  .stock-price-row { display: flex; align-items: baseline; gap: 10px; margin-left: auto; }
+  .stock-price { font-size: 24px; font-weight: 700; }
+  .change-pos { color: #4ade80; font-weight: 600; }
+  .change-neg { color: #f87171; font-weight: 600; }
+
+  /* Chart */
+  .range-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 10px; }
+  .range-buttons button { padding: 5px 11px; font-size: 12.5px; background: #2a2e38; }
+  .range-buttons button.active { background: #3b6ef6; }
+  #chartContainer svg { width: 100%; height: 240px; display: block; }
+  .chart-label { font-size: 10.5px; fill: #888; }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+  }
+  .stat-box { background: #12151c; border: 1px solid #21252e; border-radius: 8px; padding: 10px 12px; }
+  .stat-label { color: #888; font-size: 11.5px; margin-bottom: 3px; }
+  .stat-value { font-size: 14.5px; font-weight: 600; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 6px; text-align: right; border-bottom: 1px solid #262a33; }
+  th { color: #999; font-weight: 500; }
+  td:first-child, th:first-child { text-align: left; font-weight: 600; }
+
+  .news-item { padding: 10px 0; border-bottom: 1px solid #262a33; font-size: 13px; }
+  .news-item:last-child { border-bottom: none; }
+  .news-item a { color: #e6e6e6; text-decoration: none; }
+  .news-item a:hover { color: #6fa1ff; }
+  .news-publisher { color: #888; font-size: 11px; margin-top: 2px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 800px) {
+    .two-col { grid-template-columns: 1fr; }
+    .stock-price-row { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tp-brand">
+  <svg class="tp-logo" width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="0.5" y="0.5" width="27" height="27" rx="7" fill="#12151c" stroke="#2a2e38"/>
+    <path d="M4 16H9L11 10L14.5 20L17 8L19.5 16H24" stroke="#35e28a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="17" cy="8" r="1.7" fill="#ff9f40"/>
+  </svg>
+  <div>
+    <span class="tp-brand-name">TrendPulse</span>
+    <span class="tp-brand-tag">Trade the plan, not the moment.</span>
+  </div>
+</div>
+
+<h1>Shop</h1>
+<div class="nav">
+  <a href="/watchlist">Watchlist</a>
+  <a href="/autotrade">AutoTrade</a>
+  <a href="/shop" class="active">Shop</a>
+  <div class="nav-right">
+    <a href="/profile" class="nav-icon" title="Profile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+      </svg>
+    </a>
+    <a href="/logout">Log Out</a>
+  </div>
+</div>
+<div class="subtitle">Search any stock to see its chart, fundamentals, earnings, financials, and news.</div>
+
+<div class="panel">
+  <h2>Find a stock</h2>
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="Search by ticker or company name..." autocomplete="off" style="width: 100%;">
+    <div class="search-dropdown" id="searchDropdown"></div>
+  </div>
+  <span id="status"></span>
+</div>
+
+<div id="resultArea"></div>
+
+<script>
+let currentTicker = null;
+let currentRange = '1M';
+let searchDebounce = null;
+let searchResults = [];
+
+const RANGES = ['1D', '1W', '1M', '3M', '6M', '1Y', '5Y'];
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status');
+  el.textContent = msg || '';
+  el.style.color = isError ? '#f87171' : '#7fdc9c';
+}
+
+// ---------- Search ----------
+
+const searchInput = document.getElementById('searchInput');
+const searchDropdown = document.getElementById('searchDropdown');
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim();
+  clearTimeout(searchDebounce);
+  if (!q) {
+    searchDropdown.classList.remove('open');
+    return;
+  }
+  searchDebounce = setTimeout(() => runSearch(q), 300);
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const q = searchInput.value.trim().toUpperCase();
+    if (q) {
+      clearTimeout(searchDebounce);
+      searchDropdown.classList.remove('open');
+      loadStock(q);
+    }
+  } else if (e.key === 'Escape') {
+    clearTimeout(searchDebounce);
+    searchDropdown.classList.remove('open');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-wrap')) searchDropdown.classList.remove('open');
+});
+
+async function runSearch(q) {
+  try {
+    const res = await fetch('/api/stock-search?q=' + encodeURIComponent(q));
+    searchResults = await res.json();
+  } catch {
+    searchResults = [];
+  }
+
+  if (searchResults.length === 0) {
+    searchDropdown.classList.remove('open');
+    return;
+  }
+
+  searchDropdown.innerHTML = searchResults.map((r, i) => `
+    <div class="search-result" onclick="selectSearchResult(${i})">
+      <span class="search-result-exchange">${r.exchange || ''}</span>
+      <span class="search-result-symbol">${r.symbol}</span>
+      <span class="search-result-name">${r.name}</span>
+    </div>
+  `).join('');
+  searchDropdown.classList.add('open');
+}
+
+function selectSearchResult(i) {
+  const r = searchResults[i];
+  clearTimeout(searchDebounce);
+  searchDropdown.classList.remove('open');
+  searchInput.value = r.symbol;
+  loadStock(r.symbol);
+}
+
+// ---------- Formatting ----------
+
+function fmtCompact(n) {
+  if (n === null || n === undefined) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (abs >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (abs >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+  return n.toFixed(2);
+}
+
+function fmtNum(n, decimals) {
+  if (n === null || n === undefined) return '—';
+  return n.toFixed(decimals === undefined ? 2 : decimals);
+}
+
+function fmtPct(n) {
+  if (n === null || n === undefined) return '—';
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+}
+
+function changeClass(n) {
+  if (n === null || n === undefined) return '';
+  return n >= 0 ? 'change-pos' : 'change-neg';
+}
+
+// ---------- Loading a stock ----------
+
+async function loadStock(ticker) {
+  clearTimeout(searchDebounce);
+  searchDropdown.classList.remove('open');
+  setStatus('Loading ' + ticker + '...');
+  document.getElementById('resultArea').innerHTML = '<div class="panel empty">Loading ' + ticker + '...</div>';
+
+  const res = await fetch('/api/stock/' + encodeURIComponent(ticker));
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    document.getElementById('resultArea').innerHTML =
+      '<div class="panel empty">' + (body.detail || ('Could not load ' + ticker + '.')) + '</div>';
+    setStatus('');
+    return;
+  }
+
+  const data = await res.json();
+  currentTicker = data.snapshot.ticker;
+  setStatus('');
+  renderStock(data);
+  currentRange = '1M';
+  loadChart();
+}
+
+function renderStock(data) {
+  const s = data.snapshot;
+
+  let html = '<div class="panel">';
+  html += '<div class="stock-header">';
+  html += '<div><span class="stock-name">' + s.name + '</span> <span class="stock-ticker">' + s.ticker + '</span></div>';
+  html += '<div class="stock-price-row">';
+  html += '<span class="stock-price">' + (s.price !== null ? '$' + fmtNum(s.price) : '—') + '</span>';
+  html += '<span class="' + changeClass(s.change_pct) + '">' + fmtPct(s.change_pct) + '</span>';
+  html += '<button onclick="addToWatchlist(\'' + s.ticker + '\')">+ Add to Watchlist</button>';
+  html += '</div>';
+  if (s.sector || s.industry) {
+    html += '<div class="stock-meta">' + [s.sector, s.industry].filter(Boolean).join(' · ') + '</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="range-buttons">' + RANGES.map(r =>
+    '<button data-range="' + r + '" class="' + (r === currentRange ? 'active' : '') + '" onclick="setRange(\'' + r + '\')">' + r + '</button>'
+  ).join('') + '</div>';
+  html += '<div id="chartContainer"><div class="empty">Loading chart...</div></div>';
+  html += '</div>';
+
+  html += '<div class="panel">';
+  html += '<h2>Key Stats</h2>';
+  html += '<div class="stats-grid">';
+  html += statBox('Market Cap', '$' + fmtCompact(s.market_cap));
+  html += statBox('Volume', fmtCompact(s.volume));
+  html += statBox('Avg Volume', fmtCompact(s.avg_volume));
+  html += statBox('52W High', s.week52_high !== null ? '$' + fmtNum(s.week52_high) : '—');
+  html += statBox('52W Low', s.week52_low !== null ? '$' + fmtNum(s.week52_low) : '—');
+  html += statBox('PE Ratio', fmtNum(s.pe_ratio));
+  html += statBox('Forward PE', fmtNum(s.forward_pe));
+  html += statBox('EPS (Annual)', s.eps !== null ? '$' + fmtNum(s.eps) : '—');
+  html += statBox('Forward EPS', s.forward_eps !== null ? '$' + fmtNum(s.forward_eps) : '—');
+  html += statBox('Dividend Yield', s.dividend_yield !== null ? fmtNum(s.dividend_yield) + '%' : '—');
+  html += '</div></div>';
+
+  html += '<div class="two-col">';
+
+  html += '<div class="panel">';
+  html += '<h2>Earnings</h2>';
+  html += '<div class="subtitle" style="margin-bottom:12px;">' +
+    (data.earnings.next_date ? 'Next report: ' + data.earnings.next_date : 'No upcoming earnings date found.') + '</div>';
+  if (data.earnings.history.length === 0) {
+    html += '<div class="empty">No earnings history available.</div>';
+  } else {
+    html += '<table><tr><th>Date</th><th>Estimate</th><th>Actual</th><th>Surprise</th></tr>';
+    data.earnings.history.forEach(e => {
+      html += '<tr><td>' + e.date + '</td><td>' + fmtNum(e.estimate_eps) + '</td><td>' + fmtNum(e.reported_eps) +
+        '</td><td class="' + changeClass(e.surprise_pct) + '">' + fmtPct(e.surprise_pct) + '</td></tr>';
+    });
+    html += '</table>';
+  }
+  html += '</div>';
+
+  html += '<div class="panel">';
+  html += '<h2>Quarterly Financials</h2>';
+  if (data.financials.length === 0) {
+    html += '<div class="empty">No financial data available.</div>';
+  } else {
+    html += '<table><tr><th>Quarter</th><th>Revenue</th><th>Net Income</th></tr>';
+    data.financials.forEach(q => {
+      html += '<tr><td>' + q.quarter + '</td><td>$' + fmtCompact(q.revenue) + '</td><td>$' + fmtCompact(q.net_income) + '</td></tr>';
+    });
+    html += '</table>';
+  }
+  html += '</div>';
+
+  html += '</div>';
+
+  html += '<div class="panel">';
+  html += '<h2>News</h2>';
+  html += '<div id="newsList">' + renderNews(data.news) + '</div>';
+  html += '</div>';
+
+  document.getElementById('resultArea').innerHTML = html;
+}
+
+function statBox(label, value) {
+  return '<div class="stat-box"><div class="stat-label">' + label + '</div><div class="stat-value">' + value + '</div></div>';
+}
+
+function renderNews(items) {
+  if (!items || items.length === 0) return '<div class="empty">No recent news found.</div>';
+  return items.map(n => `
+    <div class="news-item">
+      <a href="${n.link || '#'}" target="_blank" rel="noopener">${n.title}</a>
+      <div class="news-publisher">${n.publisher || ''}</div>
+    </div>
+  `).join('');
+}
+
+async function addToWatchlist(ticker) {
+  await fetch('/api/watchlist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticker })
+  });
+  setStatus(ticker + ' added to your Watchlist.');
+}
+
+// ---------- Chart ----------
+
+function setRange(r) {
+  currentRange = r;
+  document.querySelectorAll('.range-buttons button').forEach(b => {
+    b.classList.toggle('active', b.dataset.range === r);
+  });
+  loadChart();
+}
+
+async function loadChart() {
+  if (!currentTicker) return;
+  const container = document.getElementById('chartContainer');
+  if (!container) return;
+  container.innerHTML = '<div class="empty">Loading chart...</div>';
+
+  const res = await fetch('/api/stock/' + encodeURIComponent(currentTicker) + '/chart?range=' + currentRange);
+  const data = await res.json();
+  renderChart(data.points);
+}
+
+function renderChart(points) {
+  const container = document.getElementById('chartContainer');
+  if (!container) return;
+
+  if (!points || points.length < 2) {
+    container.innerHTML = '<div class="empty">Not enough chart data for this range.</div>';
+    return;
+  }
+
+  const W = 600, H = 220, PAD_TOP = 14, PAD_BOTTOM = 22, PAD_X = 4;
+  const closes = points.map(p => p.c);
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const range = (max - min) || 1;
+
+  const xAt = i => PAD_X + (i / (points.length - 1)) * (W - PAD_X * 2);
+  const yAt = c => PAD_TOP + (1 - (c - min) / range) * (H - PAD_TOP - PAD_BOTTOM);
+
+  const linePoints = points.map((p, i) => xAt(i) + ',' + yAt(p.c)).join(' ');
+  const areaPoints = linePoints + ' ' + xAt(points.length - 1) + ',' + (H - PAD_BOTTOM) + ' ' + xAt(0) + ',' + (H - PAD_BOTTOM);
+
+  const isUp = closes[closes.length - 1] >= closes[0];
+  const color = isUp ? '#4ade80' : '#f87171';
+
+  const firstLabel = points[0].t.slice(0, 10);
+  const lastLabel = points[points.length - 1].t.slice(0, 10);
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <polygon points="${areaPoints}" fill="${color}" opacity="0.12" />
+      <polyline points="${linePoints}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+      <text x="6" y="12" class="chart-label">$${max.toFixed(2)}</text>
+      <text x="6" y="${H - PAD_BOTTOM - 4}" class="chart-label">$${min.toFixed(2)}</text>
+      <text x="4" y="${H - 6}" class="chart-label">${firstLabel}</text>
+      <text x="${W - 4}" y="${H - 6}" class="chart-label" text-anchor="end">${lastLabel}</text>
+    </svg>
+  `;
+}
+</script>
+
+</body>
+</html>

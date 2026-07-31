@@ -33,6 +33,7 @@ import alpaca_data
 import autotrade
 import market_data
 import signals
+import stock_lookup
 
 app = FastAPI()
 app.add_middleware(
@@ -392,6 +393,30 @@ def api_momentum(_=Depends(require_api_login)):
     return market_data.get_momentum_movers()
 
 
+@app.get("/api/stock-search")
+def api_stock_search(q: str = "", _=Depends(require_api_login)):
+    return stock_lookup.search_symbols(q)
+
+
+@app.get("/api/stock/{ticker}")
+def api_stock_detail(ticker: str, _=Depends(require_api_login)):
+    ticker = ticker.strip().upper()
+    snapshot = stock_lookup.get_stock_snapshot(ticker)
+    if snapshot.get("_error"):
+        raise HTTPException(status_code=404, detail=snapshot["_error"])
+    return {
+        "snapshot": snapshot,
+        "earnings": stock_lookup.get_stock_earnings(ticker),
+        "financials": stock_lookup.get_stock_financials(ticker),
+        "news": stock_lookup.get_stock_news(ticker),
+    }
+
+
+@app.get("/api/stock/{ticker}/chart")
+def api_stock_chart(ticker: str, range: str = "1M", _=Depends(require_api_login)):
+    return {"range": range.upper(), "points": stock_lookup.get_stock_chart(ticker, range)}
+
+
 @app.get("/api/live-prices")
 def api_live_prices(user_id: int = Depends(require_api_login)):
     watchlist = db.get_watchlist(user_id)
@@ -630,6 +655,15 @@ def serve_watchlist(request: Request):
         response.headers["Cache-Control"] = "no-store"
         return response
     return FileResponse("static/index.html")
+
+
+@app.get("/shop")
+def serve_shop(request: Request):
+    if not is_logged_in(request):
+        response = RedirectResponse("/login")
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    return FileResponse("static/shop.html")
 
 
 @app.get("/autotrade")

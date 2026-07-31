@@ -48,6 +48,12 @@ their own entry/exit strategy per ticker.
   strategy. Runs automatically once a day (`AUTOTRADE_RUN_TIME`), or
   **Run Now** to test. Defaults to paper trading — see the safety note
   below before ever changing that.
+- **Shop** (`/shop`) — search any publicly traded stock (not just your
+  watchlist) by ticker or company name. Shows a price chart (1D through
+  5Y), key stats (market cap, volume, 52-week range, PE ratio, EPS),
+  recent earnings, quarterly revenue/net income, and company news, with
+  a one-click **+ Add to Watchlist**. Data comes from yfinance, cached
+  per ticker for a few minutes so browsing doesn't hammer Yahoo Finance.
 - **Profile** (`/profile`) — name, email, phone, address, and password.
 
 ## Strategies available

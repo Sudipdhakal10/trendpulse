@@ -70,6 +70,42 @@ def _fetch_sp500_tickers():
         return None
 
 
+def parse_yf_news_items(raw_items, seen_titles=None):
+    """Normalizes yfinance's per-ticker .news list into {title, link,
+    publisher} dicts, deduped by title. Shared by the market-wide news
+    feed here and the Shop page's per-ticker news -- yfinance's news
+    schema has changed across versions, so this handles both the older
+    flat format and the newer nested "content" format in one place."""
+    if seen_titles is None:
+        seen_titles = set()
+
+    items = []
+    for item in raw_items or []:
+        try:
+            content = item.get("content", item)
+
+            title = content.get("title") or item.get("title")
+            if not title or title in seen_titles:
+                continue
+
+            link = None
+            if isinstance(content.get("canonicalUrl"), dict):
+                link = content["canonicalUrl"].get("url")
+            link = link or item.get("link")
+
+            publisher = ""
+            if isinstance(content.get("provider"), dict):
+                publisher = content["provider"].get("displayName", "")
+            publisher = publisher or item.get("publisher", "")
+
+            seen_titles.add(title)
+            items.append({"title": title, "link": link, "publisher": publisher})
+        except Exception:
+            continue
+
+    return items
+
+
 def get_market_news(limit=10):
     now = time.time()
     if _NEWS_CACHE["data"] is not None and (now - _NEWS_CACHE["timestamp"]) < CACHE_TTL_SECONDS:
@@ -83,31 +119,7 @@ def get_market_news(limit=10):
             raw_items = yf.Ticker(ticker).news or []
         except Exception:
             raw_items = []
-
-        for item in raw_items:
-            try:
-                # yfinance's news schema has changed across versions — handle
-                # both the older flat format and the newer nested "content" format.
-                content = item.get("content", item)
-
-                title = content.get("title") or item.get("title")
-                if not title or title in seen_titles:
-                    continue
-
-                link = None
-                if isinstance(content.get("canonicalUrl"), dict):
-                    link = content["canonicalUrl"].get("url")
-                link = link or item.get("link")
-
-                publisher = ""
-                if isinstance(content.get("provider"), dict):
-                    publisher = content["provider"].get("displayName", "")
-                publisher = publisher or item.get("publisher", "")
-
-                seen_titles.add(title)
-                all_items.append({"title": title, "link": link, "publisher": publisher})
-            except Exception:
-                continue
+        all_items.extend(parse_yf_news_items(raw_items, seen_titles))
 
     result = all_items[:limit]
     _NEWS_CACHE["data"] = result
