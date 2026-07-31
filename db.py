@@ -49,6 +49,7 @@ def init_db():
             alpaca_api_key TEXT NOT NULL DEFAULT '',
             alpaca_secret_key TEXT NOT NULL DEFAULT '',
             autotrade_enabled INTEGER NOT NULL DEFAULT 0,
+            is_admin INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
         )
     """)
@@ -56,6 +57,8 @@ def init_db():
     for column in ("first_name", "last_name", "phone", "street", "city", "state", "zip_code"):
         if column not in user_cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+    if "is_admin" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
     # full_name/address were a short-lived earlier shape (this app's only
     # release so far) that never held real data — replaced by the columns
     # above, so just drop them rather than carrying dead columns forward.
@@ -112,6 +115,7 @@ def init_db():
 
     _migrate_to_multi_user(conn)
     _seed_legacy_autotrade_watchlist(conn)
+    _promote_legacy_admin(conn)
 
     conn.close()
 
@@ -181,6 +185,24 @@ def _seed_legacy_autotrade_watchlist(conn):
 
     conn.execute(
         "INSERT INTO settings (key, value) VALUES ('autotrade_watchlist_seeded', 'true') "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    )
+    conn.commit()
+
+
+def _promote_legacy_admin(conn):
+    """One-time migration: grant admin (is_admin=1) to the legacy account
+    from config.APP_USERNAME -- the actual owner/operator of this
+    deployment, not a regular registrant. Independent of the other
+    migrations so it still runs even if they already completed in an
+    earlier release before is_admin existed."""
+    marker = conn.execute("SELECT 1 FROM settings WHERE key = 'legacy_admin_promoted'").fetchone()
+    if marker:
+        return
+
+    conn.execute("UPDATE users SET is_admin = 1 WHERE username = ?", (config.APP_USERNAME,))
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('legacy_admin_promoted', 'true') "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
     )
     conn.commit()

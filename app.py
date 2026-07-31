@@ -68,6 +68,23 @@ def is_logged_in(request: Request) -> bool:
     return request.session.get("user_id") is not None
 
 
+def require_admin(user_id: int = Depends(require_api_login)) -> int:
+    """Dependency for admin-only API routes — 403s anyone who isn't the
+    account with is_admin=1."""
+    user = db.get_user_by_id(user_id)
+    if not user or not user["is_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user_id
+
+
+def is_admin_user(request: Request) -> bool:
+    user_id = request.session.get("user_id")
+    if user_id is None:
+        return False
+    user = db.get_user_by_id(user_id)
+    return bool(user and user["is_admin"])
+
+
 # ============ Rate limiting ============
 # Small in-memory limiter (fine for a single-process app like this one —
 # no need for Redis/etc). Keyed by client IP, so it depends on uvicorn
@@ -517,6 +534,25 @@ def api_change_password(payload: PasswordChange, user_id: int = Depends(require_
     return {"status": "ok"}
 
 
+@app.get("/api/admin/users")
+def api_admin_list_users(_=Depends(require_admin)):
+    users = db.get_all_users()
+    return [
+        {
+            "id": u["id"],
+            "username": u["username"],
+            "first_name": u["first_name"],
+            "last_name": u["last_name"],
+            "email": u["email"],
+            "autotrade_enabled": bool(u["autotrade_enabled"]),
+            "has_alpaca_keys": bool(u["alpaca_api_key"] and u["alpaca_secret_key"]),
+            "is_admin": bool(u["is_admin"]),
+            "created_at": u["created_at"],
+        }
+        for u in sorted(users, key=lambda u: u["created_at"], reverse=True)
+    ]
+
+
 # ============ Serve the frontend ============
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -612,6 +648,19 @@ def serve_profile(request: Request):
         response.headers["Cache-Control"] = "no-store"
         return response
     return FileResponse("static/profile.html")
+
+
+@app.get("/admin/users")
+def serve_admin_users(request: Request):
+    if not is_logged_in(request):
+        response = RedirectResponse("/login")
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    if not is_admin_user(request):
+        response = RedirectResponse("/watchlist")
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    return FileResponse("static/admin_users.html")
 
 
 if __name__ == "__main__":
