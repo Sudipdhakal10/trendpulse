@@ -10,6 +10,9 @@ Then open http://localhost:8000 in your browser.
 import os
 import re
 import smtplib
+import threading
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 
@@ -60,6 +63,47 @@ def require_api_login(request: Request) -> int:
 
 def is_logged_in(request: Request) -> bool:
     return request.session.get("user_id") is not None
+
+
+# ============ Rate limiting ============
+# Small in-memory limiter (fine for a single-process app like this one —
+# no need for Redis/etc). Keyed by client IP, so it depends on uvicorn
+# actually trusting Railway's X-Forwarded-For header (see proxy_headers
+# below); otherwise every request looks like it's coming from the same
+# upstream proxy IP and one attacker could lock out everyone.
+
+_rate_limit_lock = threading.Lock()
+_rate_limit_buckets = defaultdict(deque)
+_rate_limit_last_cleanup = [0.0]
+RATE_LIMIT_CLEANUP_INTERVAL_SECONDS = 600
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limited(key: str, max_attempts: int, window_seconds: int) -> bool:
+    """Returns True if `key` has already hit max_attempts within the
+    trailing window_seconds (and should be rejected), else records this
+    attempt and returns False."""
+    now = time.time()
+    with _rate_limit_lock:
+        bucket = _rate_limit_buckets[key]
+        while bucket and bucket[0] < now - window_seconds:
+            bucket.popleft()
+
+        limited = len(bucket) >= max_attempts
+        if not limited:
+            bucket.append(now)
+
+        # Periodic sweep so IPs that stop making requests don't sit in
+        # memory forever -- keeps this bounded without a background job.
+        if now - _rate_limit_last_cleanup[0] > RATE_LIMIT_CLEANUP_INTERVAL_SECONDS:
+            for stale_key in [k for k, v in _rate_limit_buckets.items() if not v]:
+                del _rate_limit_buckets[stale_key]
+            _rate_limit_last_cleanup[0] = now
+
+    return limited
 
 
 # ============ Request models ============
@@ -447,6 +491,9 @@ def serve_register():
 
 @app.post("/api/login")
 def api_login(payload: LoginRequest, request: Request):
+    if _rate_limited(f"login:{_client_ip(request)}", max_attempts=10, window_seconds=300):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again in a few minutes.")
+
     user = db.get_user_by_username(payload.username.strip())
     if user and db.verify_password(payload.password, user["password_hash"]):
         request.session["user_id"] = user["id"]
@@ -456,6 +503,9 @@ def api_login(payload: LoginRequest, request: Request):
 
 @app.post("/api/register")
 def api_register(payload: RegisterRequest, request: Request):
+    if _rate_limited(f"register:{_client_ip(request)}", max_attempts=5, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many registration attempts. Try again later.")
+
     username = payload.username.strip()
     email = payload.email.strip()
     password = payload.password
@@ -521,4 +571,10 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"Starting server. Open http://localhost:{port} in your browser.")
     print(f"Daily automatic check scheduled for {config.DAILY_CHECK_TIME}.")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # proxy_headers + forwarded_allow_ips="*": trust X-Forwarded-For from
+    # whatever forwards to us. Safe here because Railway's edge is the
+    # only way to reach this app -- there's no direct path that could
+    # spoof it. Without this, request.client.host is Railway's internal
+    # proxy IP for every request, which would make per-IP rate limiting
+    # either a no-op or (worse) capable of locking out every user at once.
+    uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips="*")
