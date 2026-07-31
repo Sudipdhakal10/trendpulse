@@ -18,6 +18,7 @@ see market_data.refresh_momentum_cache — instead of computing it on the
 request thread.
 """
 
+import concurrent.futures
 import io
 import time
 
@@ -124,6 +125,11 @@ def get_momentum_movers(limit=10, min_relative_volume=2.0, min_pct_change=5.0):
 
 MOMENTUM_CHUNK_SIZE = 50  # tickers per yf.download batch -- bounds peak memory
 MOMENTUM_CHUNK_THREADS = 8  # bounded concurrency within a chunk (was unbounded)
+MOMENTUM_CHUNK_TIMEOUT_SECONDS = 45  # hard ceiling per chunk -- a normal chunk takes a few seconds
+
+
+def _download_chunk(chunk):
+    return yf.download(chunk, period="2mo", group_by="ticker", threads=MOMENTUM_CHUNK_THREADS, progress=False, timeout=10)
 
 
 def refresh_momentum_cache(limit=10, min_relative_volume=2.0, min_pct_change=5.0):
@@ -135,18 +141,45 @@ def refresh_momentum_cache(limit=10, min_relative_volume=2.0, min_pct_change=5.0
     Downloads the universe in small chunks rather than one ~500-ticker
     batch -- holding all of that OHLCV data in memory at once was enough
     to push a memory-constrained host over its limit. Chunking keeps peak
-    memory bounded no matter how large the universe is."""
+    memory bounded no matter how large the universe is.
+
+    Each chunk is also given a hard wall-clock ceiling. yfinance's per-
+    request timeout only covers a single HTTP request, not any internal
+    retry/backoff loop, and Yahoo's unofficial API is known to slow-walk
+    or rate-limit cloud IPs under repeated traffic. Without an outer
+    ceiling, one bad chunk can run long enough that this job is still
+    "running" when the next 15-minute trigger fires (APScheduler then
+    skips it: "maximum number of running instances reached") -- and the
+    stuck run itself was very likely what pushed memory up enough to
+    take the site down. Skipping a slow chunk and moving on keeps the
+    whole scan bounded no matter how badly one chunk misbehaves."""
     universe = get_momentum_universe()
     movers = []
 
     for start in range(0, len(universe), MOMENTUM_CHUNK_SIZE):
         chunk = universe[start:start + MOMENTUM_CHUNK_SIZE]
 
+        # Not a "with" block on purpose: ThreadPoolExecutor's context
+        # manager calls shutdown(wait=True) on exit, which blocks until
+        # the submitted thread actually finishes -- even after we've
+        # already given up on it via result(timeout=...). For a request
+        # that's genuinely hung (not just slow), that would wait forever,
+        # defeating the entire point of the timeout. shutdown(wait=False)
+        # lets us move on immediately; the orphaned thread is abandoned
+        # and cleans itself up whenever (or if) the hung request ever
+        # actually returns.
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         try:
-            data = yf.download(chunk, period="2mo", group_by="ticker", threads=MOMENTUM_CHUNK_THREADS, progress=False)
+            data = executor.submit(_download_chunk, chunk).result(timeout=MOMENTUM_CHUNK_TIMEOUT_SECONDS)
+        except concurrent.futures.TimeoutError:
+            print(f"Momentum scan chunk timed out after {MOMENTUM_CHUNK_TIMEOUT_SECONDS}s, skipping {len(chunk)} tickers")
+            executor.shutdown(wait=False)
+            continue
         except Exception as e:
             print(f"Momentum scan chunk download failed: {e}")
+            executor.shutdown(wait=False)
             continue
+        executor.shutdown(wait=False)
 
         if data is None or data.empty:
             continue
