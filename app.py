@@ -13,7 +13,10 @@ import smtplib
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -187,6 +190,48 @@ def send_email(to_address, subject, body):
         return False
 
 
+def send_database_backup():
+    """Emails a copy of the whole SQLite database to EMAIL_TO. Railway's
+    own volume backups need a paid Pro plan we're not on, and the
+    database file is the only copy of every real account, watchlist, and
+    AutoTrade setup that exists -- losing it means losing all of it, so
+    this is cheap insurance reusing credentials that already work.
+    Fine as an email attachment as long as the file stays small (it's
+    currently tens of KB); revisit this approach if that ever changes."""
+    if not os.path.exists(config.DB_PATH):
+        print("Database backup skipped: no database file found.")
+        return False
+
+    try:
+        today = date.today().isoformat()
+
+        msg = MIMEMultipart()
+        msg["Subject"] = f"TrendPulse database backup — {today}"
+        msg["From"] = config.EMAIL_ADDRESS
+        msg["To"] = config.EMAIL_TO
+        msg.attach(MIMEText(
+            "Automated daily backup of the TrendPulse database is attached. "
+            "Save it somewhere safe if you want an extra copy beyond your inbox."
+        ))
+
+        with open(config.DB_PATH, "rb") as f:
+            attachment = MIMEBase("application", "octet-stream")
+            attachment.set_payload(f.read())
+        encoders.encode_base64(attachment)
+        attachment.add_header("Content-Disposition", f'attachment; filename="watchlist-backup-{today}.db"')
+        msg.attach(attachment)
+
+        with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
+            server.starttls()
+            server.login(config.EMAIL_ADDRESS, config.EMAIL_APP_PASSWORD)
+            server.send_message(msg)
+        print(f"Database backup emailed to {config.EMAIL_TO}")
+        return True
+    except Exception as e:
+        print(f"Database backup failed: {e}")
+        return False
+
+
 # ============ Core check logic ============
 
 def check_ticker(user_id, ticker):
@@ -270,6 +315,9 @@ scheduler.add_job(
     market_data.refresh_momentum_cache, "interval", minutes=15,
     next_run_time=datetime.now() + timedelta(seconds=90),
 )
+
+backup_hour, backup_minute = config.DB_BACKUP_TIME.split(":")
+scheduler.add_job(send_database_backup, "cron", hour=int(backup_hour), minute=int(backup_minute))
 
 scheduler.start()
 
@@ -571,6 +619,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"Starting server. Open http://localhost:{port} in your browser.")
     print(f"Daily automatic check scheduled for {config.DAILY_CHECK_TIME}.")
+    print(f"Daily database backup email scheduled for {config.DB_BACKUP_TIME}.")
     # proxy_headers + forwarded_allow_ips="*": trust X-Forwarded-For from
     # whatever forwards to us. Safe here because Railway's edge is the
     # only way to reach this app -- there's no direct path that could

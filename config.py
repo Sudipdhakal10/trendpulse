@@ -43,6 +43,11 @@ PAPER_TRADING = os.environ.get("PAPER_TRADING", "true").lower() != "false"
 # ideally shortly after market open.
 AUTOTRADE_RUN_TIME = os.environ.get("AUTOTRADE_RUN_TIME", "09:35")
 
+# Time of day a full database backup gets emailed to EMAIL_TO (24hr
+# "HH:MM"). Railway's own volume backups need a paid Pro plan; this is a
+# free substitute using the same Gmail credentials already set up above.
+DB_BACKUP_TIME = os.environ.get("DB_BACKUP_TIME", "03:15")
+
 # Used only once, the very first time this app runs against a database
 # from before multi-user login existed: it seeds one admin account with
 # these credentials so nothing gets orphaned by the upgrade. Every other

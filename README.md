@@ -70,6 +70,7 @@ from entry price).
 | `SMTP_SERVER` / `SMTP_PORT` | SMTP settings | `smtp.gmail.com` / `587` |
 | `DAILY_CHECK_TIME` | When the daily Watchlist check runs (`HH:MM`) | `16:30` |
 | `AUTOTRADE_RUN_TIME` | When the daily AutoTrade run happens (`HH:MM`) | `09:35` |
+| `DB_BACKUP_TIME` | When the daily database backup email goes out (`HH:MM`) | `03:15` |
 | `DB_PATH` | Where the SQLite file lives | `watchlist.db` |
 | `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` | Shared market-data keys (Watchlist live prices only) | — |
 | `PAPER_TRADING` | Must be explicitly `false` to trade real money | `true` |
@@ -145,9 +146,18 @@ scratch on a new environment:
 ### Before this is genuinely public
 
 - **Registration is open to anyone with the URL** — anyone can create an
-  account today. Decide if that's what you want before sharing the link
-  widely; there's no invite/approval gate right now.
+  account today; there's no invite/approval gate. `/api/login` and
+  `/api/register` are rate-limited per IP (10 login attempts / 5 min,
+  5 registrations / hour) against brute-force and spam signups, but
+  decide if fully open registration is what you want before sharing
+  the link widely.
 - **`PAPER_TRADING` stays `true`** until you deliberately flip it — do
   not change this until you're fully ready, and even then, start small.
+- **Backups**: Railway's own volume backups need a paid Pro plan. In
+  the meantime, a full copy of the database is emailed to `EMAIL_TO`
+  daily at `DB_BACKUP_TIME` — check that it's actually arriving, since
+  it's silent-fail by design (a missed backup shouldn't crash the app).
+  Worth revisiting if the database ever grows large enough that an
+  email attachment stops being practical.
 - Cost is typically $5/month or less for an app this lightweight
   (Railway's Hobby plan bills by actual usage).
