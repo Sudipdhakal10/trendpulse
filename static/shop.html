@@ -6,6 +6,8 @@
 <title>TrendPulse — Shop</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
 <style>
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #0f1115;
@@ -101,7 +103,7 @@
   .stock-name { font-size: 19px; font-weight: 700; }
   .stock-ticker { color: #888; font-size: 14px; }
   .stock-meta { color: #888; font-size: 12.5px; width: 100%; }
-  .stock-price-row { display: flex; align-items: baseline; gap: 10px; margin-left: auto; }
+  .stock-price-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-left: auto; }
   .stock-price { font-size: 24px; font-weight: 700; }
   .change-pos { color: #4ade80; font-weight: 600; }
   .change-neg { color: #f87171; font-weight: 600; }
@@ -110,8 +112,9 @@
   .range-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 10px; }
   .range-buttons button { padding: 5px 11px; font-size: 12.5px; background: #2a2e38; }
   .range-buttons button.active { background: #3b6ef6; }
-  #chartContainer svg { width: 100%; height: 240px; display: block; }
+  #chartContainer svg { width: 100%; height: 240px; display: block; cursor: crosshair; touch-action: none; }
   .chart-label { font-size: 10.5px; fill: #888; }
+  .chart-hover-label { font-size: 11px; fill: #ccc; }
 
   /* Stats grid */
   .stats-grid {
@@ -123,6 +126,7 @@
   .stat-label { color: #888; font-size: 11.5px; margin-bottom: 3px; }
   .stat-value { font-size: 14.5px; font-weight: 600; }
 
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 8px 6px; text-align: right; border-bottom: 1px solid #262a33; }
   th { color: #999; font-weight: 500; }
@@ -188,6 +192,9 @@ let currentTicker = null;
 let currentRange = '1M';
 let searchDebounce = null;
 let searchResults = [];
+let currentSnapshot = null;
+let chartCoords = [];
+let chartPointsRef = [];
 
 const RANGES = ['1D', '1W', '1M', '3M', '6M', '1Y', '5Y'];
 
@@ -315,13 +322,14 @@ async function loadStock(ticker) {
 
 function renderStock(data) {
   const s = data.snapshot;
+  currentSnapshot = s;
 
   let html = '<div class="panel">';
   html += '<div class="stock-header">';
   html += '<div><span class="stock-name">' + s.name + '</span> <span class="stock-ticker">' + s.ticker + '</span></div>';
   html += '<div class="stock-price-row">';
-  html += '<span class="stock-price">' + (s.price !== null ? '$' + fmtNum(s.price) : '—') + '</span>';
-  html += '<span class="' + changeClass(s.change_pct) + '">' + fmtPct(s.change_pct) + '</span>';
+  html += '<span class="stock-price" id="stockPrice">' + (s.price !== null ? '$' + fmtNum(s.price) : '—') + '</span>';
+  html += '<span id="stockChange" class="' + changeClass(s.change_pct) + '">' + fmtPct(s.change_pct) + '</span>';
   html += '<button onclick="addToWatchlist(\'' + s.ticker + '\')">+ Add to Watchlist</button>';
   html += '</div>';
   if (s.sector || s.industry) {
@@ -359,12 +367,12 @@ function renderStock(data) {
   if (data.earnings.history.length === 0) {
     html += '<div class="empty">No earnings history available.</div>';
   } else {
-    html += '<table><tr><th>Date</th><th>Estimate</th><th>Actual</th><th>Surprise</th></tr>';
+    html += '<div class="table-scroll"><table><tr><th>Date</th><th>Estimate</th><th>Actual</th><th>Surprise</th></tr>';
     data.earnings.history.forEach(e => {
       html += '<tr><td>' + e.date + '</td><td>' + fmtNum(e.estimate_eps) + '</td><td>' + fmtNum(e.reported_eps) +
         '</td><td class="' + changeClass(e.surprise_pct) + '">' + fmtPct(e.surprise_pct) + '</td></tr>';
     });
-    html += '</table>';
+    html += '</table></div>';
   }
   html += '</div>';
 
@@ -373,11 +381,11 @@ function renderStock(data) {
   if (data.financials.length === 0) {
     html += '<div class="empty">No financial data available.</div>';
   } else {
-    html += '<table><tr><th>Quarter</th><th>Revenue</th><th>Net Income</th></tr>';
+    html += '<div class="table-scroll"><table><tr><th>Quarter</th><th>Revenue</th><th>Net Income</th></tr>';
     data.financials.forEach(q => {
       html += '<tr><td>' + q.quarter + '</td><td>$' + fmtCompact(q.revenue) + '</td><td>$' + fmtCompact(q.net_income) + '</td></tr>';
     });
-    html += '</table>';
+    html += '</table></div>';
   }
   html += '</div>';
 
@@ -435,43 +443,170 @@ async function loadChart() {
   renderChart(data.points);
 }
 
+function formatChartDate(iso) {
+  return iso.slice(0, 10);
+}
+
+function formatChartDateFull(iso) {
+  const d = new Date(iso);
+  if (currentRange === '1D') {
+    return d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Catmull-Rom -> cubic Bezier, so the line curves smoothly through every
+// point instead of the sharp zig-zag a plain polyline gives.
+function smoothPath(coords) {
+  if (coords.length < 3) {
+    return 'M' + coords.map(p => p.x + ',' + p.y).join(' L');
+  }
+  let d = `M${coords[0].x},${coords[0].y} `;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[i - 1] || coords[i];
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+    const p3 = coords[i + 2] || p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += `C${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)} `;
+  }
+  return d;
+}
+
 function renderChart(points) {
   const container = document.getElementById('chartContainer');
   if (!container) return;
+
+  chartPointsRef = points || [];
+  chartCoords = [];
 
   if (!points || points.length < 2) {
     container.innerHTML = '<div class="empty">Not enough chart data for this range.</div>';
     return;
   }
 
-  const W = 600, H = 220, PAD_TOP = 14, PAD_BOTTOM = 22, PAD_X = 4;
+  const W = 600, H = 240, PAD_TOP = 16, PAD_BOTTOM = 24, PAD_X = 4;
   const closes = points.map(p => p.c);
   const min = Math.min(...closes);
   const max = Math.max(...closes);
   const range = (max - min) || 1;
+  const baseline = H - PAD_BOTTOM;
 
   const xAt = i => PAD_X + (i / (points.length - 1)) * (W - PAD_X * 2);
   const yAt = c => PAD_TOP + (1 - (c - min) / range) * (H - PAD_TOP - PAD_BOTTOM);
 
-  const linePoints = points.map((p, i) => xAt(i) + ',' + yAt(p.c)).join(' ');
-  const areaPoints = linePoints + ' ' + xAt(points.length - 1) + ',' + (H - PAD_BOTTOM) + ' ' + xAt(0) + ',' + (H - PAD_BOTTOM);
+  chartCoords = points.map((p, i) => ({ x: xAt(i), y: yAt(p.c) }));
+
+  const linePath = smoothPath(chartCoords);
+  const last = chartCoords[chartCoords.length - 1];
+  const first = chartCoords[0];
+  const areaPath = `${linePath} L${last.x},${baseline} L${first.x},${baseline} Z`;
 
   const isUp = closes[closes.length - 1] >= closes[0];
   const color = isUp ? '#4ade80' : '#f87171';
+  const gradId = 'chartGrad-' + currentRange;
 
-  const firstLabel = points[0].t.slice(0, 10);
-  const lastLabel = points[points.length - 1].t.slice(0, 10);
+  const firstLabel = formatChartDate(points[0].t);
+  const lastLabel = formatChartDate(points[points.length - 1].t);
 
   container.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      <polygon points="${areaPoints}" fill="${color}" opacity="0.12" />
-      <polyline points="${linePoints}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="chartSvg"
+         onmousemove="handleChartHover(event)" onmouseleave="handleChartLeave()"
+         ontouchstart="handleChartHover(event)" ontouchmove="handleChartHover(event)" ontouchend="handleChartLeave()">
+      <defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.32" />
+          <stop offset="100%" stop-color="${color}" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#${gradId})" stroke="none" />
+      <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" />
+      <line id="hoverGuide" x1="0" y1="${PAD_TOP}" x2="0" y2="${baseline}" stroke="#666" stroke-width="1" stroke-dasharray="3,3" opacity="0" />
+      <circle id="hoverDot" r="4.5" fill="${color}" stroke="#0f1115" stroke-width="2" opacity="0" />
+      <text id="hoverDateLabel" x="0" y="${PAD_TOP}" class="chart-hover-label" text-anchor="middle" opacity="0"></text>
       <text x="6" y="12" class="chart-label">$${max.toFixed(2)}</text>
-      <text x="6" y="${H - PAD_BOTTOM - 4}" class="chart-label">$${min.toFixed(2)}</text>
+      <text x="6" y="${baseline - 4}" class="chart-label">$${min.toFixed(2)}</text>
       <text x="4" y="${H - 6}" class="chart-label">${firstLabel}</text>
       <text x="${W - 4}" y="${H - 6}" class="chart-label" text-anchor="end">${lastLabel}</text>
     </svg>
   `;
+}
+
+// ---------- Chart hover / scrub ----------
+
+function handleChartHover(evt) {
+  if (!chartCoords.length) return;
+  const svg = document.getElementById('chartSvg');
+  if (!svg) return;
+  evt.preventDefault();
+
+  const touch = (evt.touches && evt.touches[0]) || (evt.changedTouches && evt.changedTouches[0]);
+  const clientX = touch ? touch.clientX : evt.clientX;
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width) return;
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  const idx = Math.round(ratio * (chartCoords.length - 1));
+
+  const point = chartPointsRef[idx];
+  const coord = chartCoords[idx];
+  if (!point || !coord) return;
+
+  const guide = document.getElementById('hoverGuide');
+  const dot = document.getElementById('hoverDot');
+  const dateLabel = document.getElementById('hoverDateLabel');
+  if (!guide || !dot || !dateLabel) return;
+
+  guide.setAttribute('x1', coord.x);
+  guide.setAttribute('x2', coord.x);
+  guide.setAttribute('opacity', '1');
+  dot.setAttribute('cx', coord.x);
+  dot.setAttribute('cy', coord.y);
+  dot.setAttribute('opacity', '1');
+  dateLabel.setAttribute('x', Math.min(560, Math.max(40, coord.x)));
+  dateLabel.setAttribute('y', Math.max(12, coord.y - 12));
+  dateLabel.textContent = formatChartDateFull(point.t);
+  dateLabel.setAttribute('opacity', '1');
+
+  updateHeaderForHover(point);
+}
+
+function handleChartLeave() {
+  const guide = document.getElementById('hoverGuide');
+  const dot = document.getElementById('hoverDot');
+  const dateLabel = document.getElementById('hoverDateLabel');
+  if (guide) guide.setAttribute('opacity', '0');
+  if (dot) dot.setAttribute('opacity', '0');
+  if (dateLabel) dateLabel.setAttribute('opacity', '0');
+  restoreHeaderPrice();
+}
+
+function updateHeaderForHover(point) {
+  if (!chartPointsRef.length) return;
+  const start = chartPointsRef[0].c;
+  const change = point.c - start;
+  const changePct = start ? (change / start) * 100 : 0;
+
+  const priceEl = document.getElementById('stockPrice');
+  const changeEl = document.getElementById('stockChange');
+  if (priceEl) priceEl.textContent = '$' + point.c.toFixed(2);
+  if (changeEl) {
+    changeEl.textContent = fmtPct(changePct);
+    changeEl.className = changeClass(changePct);
+  }
+}
+
+function restoreHeaderPrice() {
+  if (!currentSnapshot) return;
+  const priceEl = document.getElementById('stockPrice');
+  const changeEl = document.getElementById('stockChange');
+  if (priceEl) priceEl.textContent = currentSnapshot.price !== null ? '$' + fmtNum(currentSnapshot.price) : '—';
+  if (changeEl) {
+    changeEl.textContent = fmtPct(currentSnapshot.change_pct);
+    changeEl.className = changeClass(currentSnapshot.change_pct);
+  }
 }
 </script>
 
