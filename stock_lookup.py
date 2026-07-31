@@ -115,6 +115,7 @@ def get_stock_snapshot(ticker):
             "industry": info.get("industry"),
             "price": _num(price),
             "change_pct": _num(change_pct),
+            "previous_close": _num(prev_close),
             "market_cap": _num(info.get("marketCap")),
             "pe_ratio": _num(info.get("trailingPE")),
             "forward_pe": _num(info.get("forwardPE")),

@@ -7,7 +7,12 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
 <style>
   * { box-sizing: border-box; }
-  html, body { overflow-x: hidden; }
+  /* No overflow-x:hidden here on purpose: setting overflow-x alone (per the
+     CSS Overflow spec) forces the computed overflow-y from its default
+     'visible' to 'auto', turning body into its own scroll/clip container --
+     which then clipped the search dropdown's absolutely-positioned overflow
+     on short pages instead of letting it paint past the fold. box-sizing:
+     border-box below is what actually fixed the horizontal-scroll bug. */
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #0f1115;
@@ -103,7 +108,18 @@
   .stock-ticker { color: #888; font-size: 14px; }
   .stock-meta { color: #888; font-size: 12.5px; width: 100%; word-break: break-word; }
   .stock-price-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-left: auto; }
-  .stock-price { font-size: 24px; font-weight: 700; }
+  .stock-price {
+    font-size: 24px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 5.5ch;
+    display: inline-block;
+  }
+  #stockChange {
+    font-variant-numeric: tabular-nums;
+    min-width: 5.5ch;
+    display: inline-block;
+  }
   .change-pos { color: #4ade80; font-weight: 600; }
   .change-neg { color: #f87171; font-weight: 600; }
 
@@ -482,7 +498,13 @@ function startLiveUpdatesIfNeeded() {
 }
 
 function formatChartDate(iso) {
-  return iso.slice(0, 10);
+  const d = new Date(iso);
+  if (currentRange === '1D') {
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  const opts = { month: 'short', day: 'numeric' };
+  if (currentRange === '1Y' || currentRange === '5Y') opts.year = 'numeric';
+  return d.toLocaleDateString('en-US', opts);
 }
 
 function formatChartDateFull(iso) {
@@ -568,8 +590,8 @@ function renderChart(points) {
       <line id="hoverGuide" x1="0" y1="${PAD_TOP}" x2="0" y2="${baseline}" stroke="#666" stroke-width="1" stroke-dasharray="3,3" opacity="0" />
       <circle id="hoverDot" r="4.5" fill="${color}" stroke="#0f1115" stroke-width="2" opacity="0" />
       <text id="hoverDateLabel" x="0" y="${PAD_TOP}" class="chart-hover-label" text-anchor="middle" opacity="0"></text>
-      <text x="4" y="${PAD_TOP + 2}" class="chart-label">$${max.toFixed(2)}</text>
-      <text x="4" y="${baseline - 2}" class="chart-label">$${min.toFixed(2)}</text>
+      <text x="4" y="${PAD_TOP + 2}" class="chart-label">H $${max.toFixed(2)}</text>
+      <text x="4" y="${baseline - 2}" class="chart-label">L $${min.toFixed(2)}</text>
       <text x="${LEFT_GUTTER}" y="${H - 6}" class="chart-label">${firstLabel}</text>
       <text x="${W - RIGHT_PAD}" y="${H - 6}" class="chart-label" text-anchor="end">${lastLabel}</text>
     </svg>
@@ -641,17 +663,31 @@ function updateHeaderForHover(point) {
   }
 }
 
-// The non-hover baseline: current price, but the % change reflects the
-// selected range's total move (start of range -> now), not just today's
-// change -- so switching to 1Y shows the 1-year return, not today's %.
+// The non-hover baseline. Two different metrics depending on range:
+//  - 1D: "today's change" is always measured against YESTERDAY's close,
+//    not today's first intraday bar (which misses overnight gaps) -- and
+//    the price shown tracks the latest intraday bar, so it actually moves
+//    as the live poll brings in new bars instead of sitting frozen at
+//    whatever price loaded on page-open.
+//  - Any other range: the period's total return (first bar of the range
+//    -> current price), so 1Y shows the 1-year return, not today's %.
 function paintHeaderBaseline() {
   if (!currentSnapshot) return;
   const priceEl = document.getElementById('stockPrice');
   const changeEl = document.getElementById('stockChange');
-  const price = currentSnapshot.price;
 
+  let price = currentSnapshot.price;
   let changePct = currentSnapshot.change_pct;
-  if (chartPointsRef.length >= 2 && chartPointsRef[0].c) {
+
+  if (currentRange === '1D') {
+    if (chartPointsRef.length) {
+      price = chartPointsRef[chartPointsRef.length - 1].c;
+    }
+    const prevClose = currentSnapshot.previous_close;
+    if (prevClose && price !== null && price !== undefined) {
+      changePct = ((price - prevClose) / prevClose) * 100;
+    }
+  } else if (chartPointsRef.length >= 2 && chartPointsRef[0].c) {
     const startClose = chartPointsRef[0].c;
     const endClose = (price !== null && price !== undefined) ? price : chartPointsRef[chartPointsRef.length - 1].c;
     changePct = ((endClose - startClose) / startClose) * 100;
