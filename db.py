@@ -191,18 +191,28 @@ def _seed_legacy_autotrade_watchlist(conn):
 
 
 def _promote_legacy_admin(conn):
-    """One-time migration: grant admin (is_admin=1) to the legacy account
-    from config.APP_USERNAME -- the actual owner/operator of this
-    deployment, not a regular registrant. Independent of the other
-    migrations so it still runs even if they already completed in an
-    earlier release before is_admin existed."""
-    marker = conn.execute("SELECT 1 FROM settings WHERE key = 'legacy_admin_promoted'").fetchone()
+    """One-time migration: grant admin (is_admin=1) to the very first
+    account ever created (MIN(id)) -- the actual owner/operator of this
+    deployment. Deliberately NOT keyed on config.APP_USERNAME: that env
+    var only matters during the original single-user-to-multi-user
+    migration and is correctly left unset afterward (see README) --
+    which meant on a deploy where it was never set, this matched
+    nobody (falling back to the literal string "admin") and silently
+    promoted no one. MIN(id) is invariant instead: the first row is
+    always the legacy/original account, regardless of any env var.
+
+    Uses a new marker key (not the original 'legacy_admin_promoted')
+    since that one already got marked "done" by the broken version of
+    this migration despite updating zero rows -- reusing it would mean
+    this fix never actually runs on a database that already saw that
+    bug."""
+    marker = conn.execute("SELECT 1 FROM settings WHERE key = 'legacy_admin_promoted_v2'").fetchone()
     if marker:
         return
 
-    conn.execute("UPDATE users SET is_admin = 1 WHERE username = ?", (config.APP_USERNAME,))
+    conn.execute("UPDATE users SET is_admin = 1 WHERE id = (SELECT MIN(id) FROM users)")
     conn.execute(
-        "INSERT INTO settings (key, value) VALUES ('legacy_admin_promoted', 'true') "
+        "INSERT INTO settings (key, value) VALUES ('legacy_admin_promoted_v2', 'true') "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
     )
     conn.commit()
