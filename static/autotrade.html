@@ -132,6 +132,18 @@
   }
   .keys-status { font-size: 12.5px; color: #888; margin-top: 10px; }
   #keysSaveStatus { font-size: 13px; color: #7fdc9c; margin-left: 10px; }
+  .keys-details { margin-top: 12px; }
+  .keys-details summary {
+    cursor: pointer;
+    color: #999;
+    font-size: 13px;
+    padding: 4px 0;
+    list-style: none;
+  }
+  .keys-details summary::-webkit-details-marker { display: none; }
+  .keys-details summary::before { content: "▸ "; color: #666; }
+  .keys-details[open] summary::before { content: "▾ "; }
+  .keys-details summary:hover { color: #ccc; }
   .tp-brand {
     position: absolute;
     top: 16px;
@@ -235,25 +247,28 @@
   <div class="side-column">
 
     <div class="panel">
-      <h2>Your Alpaca Account</h2>
-      <div class="subtitle" style="margin-bottom:8px;">AutoTrade trades on your behalf using your own Alpaca API keys — get them free from your Alpaca dashboard (paper or live).</div>
-      <form class="keys-form" id="keysForm">
-        <label for="apiKey">API Key</label>
-        <input type="text" id="apiKey" autocomplete="off" placeholder="e.g. PKF4YLYM...">
-
-        <label for="secretKey">Secret Key</label>
-        <input type="password" id="secretKey" autocomplete="off" placeholder="Enter to replace saved secret">
-
-        <button type="submit" style="margin-top:14px;">Save Keys</button>
-        <span id="keysSaveStatus"></span>
-      </form>
-      <div class="keys-status" id="keysStatus">Checking...</div>
-    </div>
-
-    <div class="panel">
       <h2>Account</h2>
       <div id="accountStats"></div>
       <div id="accountLiveStatus" style="font-size:11px; color:#666; margin-top:8px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Your Alpaca Account</h2>
+      <div class="subtitle" style="margin-bottom:8px;">AutoTrade trades on your behalf using your own Alpaca API keys — get them free from your Alpaca dashboard (paper or live).</div>
+      <div class="keys-status" id="keysStatus">Checking...</div>
+      <details class="keys-details">
+        <summary>API Key / Secret Key</summary>
+        <form class="keys-form" id="keysForm">
+          <label for="apiKey">API Key</label>
+          <input type="text" id="apiKey" autocomplete="off" placeholder="e.g. PKF4YLYM...">
+
+          <label for="secretKey">Secret Key</label>
+          <input type="password" id="secretKey" autocomplete="off" placeholder="Enter to replace saved secret">
+
+          <button type="submit" style="margin-top:14px;">Save Keys</button>
+          <span id="keysSaveStatus"></span>
+        </form>
+      </details>
     </div>
 
     <div class="panel">
