@@ -189,7 +189,7 @@
         <h2>Automated Daily Run</h2>
         <div class="action-row">
           <button id="toggleBtn" onclick="toggleAutotrade()">...</button>
-          <button class="secondary" onclick="runNow()">Run Now</button>
+          <button class="secondary" onclick="runNow(this)">Run Now</button>
           <span id="status"></span>
         </div>
       </div>
@@ -416,26 +416,36 @@ function formatLogLine(line) {
     .replace(/^(Bought .+)/, '<span class="log-buy">$1</span>');
 }
 
-async function runNow() {
+async function runNow(button) {
   const status = document.getElementById('status');
+
+  // Guards against a real-money double-order: rapid double-clicks (or
+  // impatience while a run that's genuinely taking a few seconds is still
+  // in flight) could otherwise fire two overlapping runs.
+  if (button.disabled) return;
+  button.disabled = true;
   status.textContent = 'Running...';
 
-  const res = await fetch('/api/autotrade/run-now', { method: 'POST' });
-  const data = await res.json();
+  try {
+    const res = await fetch('/api/autotrade/run-now', { method: 'POST' });
+    const data = await res.json();
 
-  if (data.error) {
-    status.textContent = data.error;
-    return;
+    if (data.error) {
+      status.textContent = data.error;
+      return;
+    }
+
+    document.getElementById('runLog').innerHTML =
+      data.log.map(line => `<div class="log-line">${formatLogLine(line)}</div>`).join('');
+
+    status.textContent = 'Run complete.';
+    setTimeout(() => status.textContent = '', 5000);
+
+    loadAccount();
+    loadTradeHistory();
+  } finally {
+    button.disabled = false;
   }
-
-  document.getElementById('runLog').innerHTML =
-    data.log.map(line => `<div class="log-line">${formatLogLine(line)}</div>`).join('');
-
-  status.textContent = 'Run complete.';
-  setTimeout(() => status.textContent = '', 5000);
-
-  loadAccount();
-  loadTradeHistory();
 }
 
 async function loadKeysStatus() {

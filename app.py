@@ -319,6 +319,32 @@ def check_all():
     return all_triggered
 
 
+# ============ AutoTrade run guard ============
+# run_rotation_bot() already checks Alpaca's own pending orders to avoid
+# re-buying something already in flight, but that only closes the gap
+# between separate sequential runs -- it doesn't stop two runs for the
+# SAME user starting close enough together that both snapshot "nothing
+# pending yet" before either's order has synced to Alpaca (a rapid
+# double-click on "Run Now", two open tabs, or a manual click landing at
+# the same moment as the scheduled run). This lock makes a second
+# concurrent run for a user a no-op instead of a second real order.
+_autotrade_run_lock = threading.Lock()
+_autotrade_running_users = set()
+
+
+def run_rotation_bot_exclusive(user_id, api_key, secret_key):
+    with _autotrade_run_lock:
+        if user_id in _autotrade_running_users:
+            return {"error": "AutoTrade is already running for this account -- try again in a moment.", "log": []}
+        _autotrade_running_users.add(user_id)
+
+    try:
+        return autotrade.run_rotation_bot(user_id, api_key, secret_key)
+    finally:
+        with _autotrade_run_lock:
+            _autotrade_running_users.discard(user_id)
+
+
 # ============ Scheduler ============
 
 # Explicit timezone so DAILY_CHECK_TIME/AUTOTRADE_RUN_TIME/DB_BACKUP_TIME
@@ -342,7 +368,7 @@ def scheduled_autotrade_run():
         if not user["alpaca_api_key"] or not user["alpaca_secret_key"]:
             continue
         try:
-            autotrade.run_rotation_bot(user["id"], user["alpaca_api_key"], user["alpaca_secret_key"])
+            run_rotation_bot_exclusive(user["id"], user["alpaca_api_key"], user["alpaca_secret_key"])
         except Exception as e:
             # One user's bad keys/ticker/API hiccup must not stop every
             # other user still left in this loop from trading that day.
@@ -466,7 +492,13 @@ def api_autotrade_trades(user_id: int = Depends(require_api_login)):
 @app.post("/api/autotrade/run-now")
 def api_autotrade_run_now(user_id: int = Depends(require_api_login)):
     user = db.get_user_by_id(user_id)
-    return autotrade.run_rotation_bot(user_id, user["alpaca_api_key"], user["alpaca_secret_key"])
+    try:
+        return run_rotation_bot_exclusive(user_id, user["alpaca_api_key"], user["alpaca_secret_key"])
+    except Exception as e:
+        # run_rotation_bot isolates per-ticker failures internally, but this
+        # is the last line of defense against anything unexpected still
+        # surfacing as a raw 500 to a user manually clicking "Run Now".
+        return {"error": f"AutoTrade run failed: {e}", "log": []}
 
 
 @app.get("/api/autotrade/enabled")

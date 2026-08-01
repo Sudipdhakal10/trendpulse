@@ -138,30 +138,41 @@ def run_rotation_bot(user_id, api_key, secret_key):
             log_lines.append(f"{t}: order already pending, skipping until it fills")
             continue
 
-        if held:
-            entry_price = current_positions[t]["avg_entry_price"]
-            fired = signals.evaluate_exit(t, row["exit_strategy"], entry_price=entry_price)
-            log_lines.append(f"{t}: HELD — exit strategy {row['exit_strategy']} {'FIRED' if fired else 'not yet'}")
-            if fired:
-                exits.append(t)
-        else:
-            result = signals.evaluate_latest(t)
-            if result is None:
-                log_lines.append(f"{t}: could not fetch data, skipping")
-                continue
-            fired = bool(result["signals"].get(row["entry_strategy"]))
-            log_lines.append(f"{t}: not held — entry strategy {row['entry_strategy']} {'FIRED' if fired else 'not yet'}")
-            if fired:
-                entries.append(t)
+        try:
+            if held:
+                entry_price = current_positions[t]["avg_entry_price"]
+                fired = signals.evaluate_exit(t, row["exit_strategy"], entry_price=entry_price)
+                log_lines.append(f"{t}: HELD — exit strategy {row['exit_strategy']} {'FIRED' if fired else 'not yet'}")
+                if fired:
+                    exits.append(t)
+            else:
+                result = signals.evaluate_latest(t)
+                if result is None:
+                    log_lines.append(f"{t}: could not fetch data, skipping")
+                    continue
+                fired = bool(result["signals"].get(row["entry_strategy"]))
+                log_lines.append(f"{t}: not held — entry strategy {row['entry_strategy']} {'FIRED' if fired else 'not yet'}")
+                if fired:
+                    entries.append(t)
+        except Exception as e:
+            # yfinance is known to be flaky on cloud IPs (see signals.py/
+            # market_data.py) -- one bad ticker must not stop every other
+            # ticker in this user's list from being evaluated.
+            log_lines.append(f"{t}: evaluation failed, skipping ({e})")
 
     if exits:
         for t in exits:
-            client.close_position(t)
-            db.record_trade(
-                user_id, t, "sell", current_positions[t]["qty"],
-                f"Exit: {exit_strategy_by_ticker[t]}",
-            )
-            log_lines.append(f"Closed {t}")
+            try:
+                client.close_position(t)
+                db.record_trade(
+                    user_id, t, "sell", current_positions[t]["qty"],
+                    f"Exit: {exit_strategy_by_ticker[t]}",
+                )
+                log_lines.append(f"Closed {t}")
+            except Exception as e:
+                # One rejected/failed close must not stop other tickers'
+                # exits (or the entries below) from still being attempted.
+                log_lines.append(f"{t}: failed to close position ({e})")
     else:
         log_lines.append("No exits today.")
 
@@ -176,12 +187,19 @@ def run_rotation_bot(user_id, api_key, secret_key):
                 continue
 
             allocation = min(MAX_PER_TICKER, available_cash)
-            price = get_latest_price(t)
-            qty = allocation / price
+            try:
+                price = get_latest_price(t)
+                qty = allocation / price
+                submit_order(user_id, client, t, qty, OrderSide.BUY, reason=f"Entry: {entry_strategy_by_ticker[t]}")
+            except Exception as e:
+                # One failed buy (bad price data, an Alpaca rejection, etc.)
+                # must not stop the remaining entries from being attempted,
+                # and must not deduct this allocation from available_cash
+                # since nothing was actually bought.
+                log_lines.append(f"{t}: failed to buy ({e})")
+                continue
 
-            submit_order(user_id, client, t, qty, OrderSide.BUY, reason=f"Entry: {entry_strategy_by_ticker[t]}")
             log_lines.append(f"Bought {qty:.4f} shares of {t} (${allocation:,.2f})")
-
             available_cash -= allocation
     else:
         log_lines.append("No entries today.")
