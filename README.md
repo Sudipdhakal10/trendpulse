@@ -45,9 +45,11 @@ their own entry/exit strategy per ticker.
   above, so an alert-only strategy never silently becomes a real trade.
   Add your own Alpaca API key/secret (from your own Alpaca account, paper
   or live), then per ticker pick one entry strategy and one exit
-  strategy. Runs automatically once a day (`AUTOTRADE_RUN_TIME`), or
-  **Run Now** to test. Defaults to paper trading — see the safety note
-  below before ever changing that.
+  strategy. Position size defaults to a shared $10,000-per-ticker cap,
+  but each ticker can optionally override that with its own fixed
+  dollar amount or share quantity. Runs automatically once a day
+  (`AUTOTRADE_RUN_TIME`), or **Run Now** to test. Defaults to paper
+  trading — see the safety note below before ever changing that.
 - **Screener** (`/screener`) — search any publicly traded stock (not just your
   watchlist) by ticker or company name. Shows a price chart (1D through
   5Y), key stats (market cap, volume, 52-week range, PE ratio, EPS),

@@ -84,6 +84,15 @@
     font-size: 13px;
   }
   #autotradeAddStatus { font-size: 13px; color: #7fdc9c; }
+  .alloc-value-input {
+    background: #0f1115;
+    border: 1px solid #333;
+    color: #eee;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 90px;
+  }
   .pl-pos { color: #4ade80; font-weight: 600; }
   .pl-neg { color: #f87171; font-weight: 600; }
   .banner {
@@ -210,11 +219,17 @@
 
     <div class="panel">
       <h2>Your AutoTrade Watchlist</h2>
-      <div class="subtitle" style="margin-bottom:12px;">Pick your own stocks and an entry/exit strategy for each. This is separate from your email Watchlist — enabling a strategy there for alerts never triggers a real trade here.</div>
+      <div class="subtitle" style="margin-bottom:12px;">Pick your own stocks and an entry/exit strategy for each. This is separate from your email Watchlist — enabling a strategy there for alerts never triggers a real trade here. Position size defaults to a shared $10,000 cap per ticker — optionally override it with your own dollar amount or share count below.</div>
       <div class="add-row">
         <input type="text" id="autotradeTickerInput" placeholder="e.g. AAPL" maxlength="10">
         <select id="autotradeEntrySelect"></select>
         <select id="autotradeExitSelect"></select>
+        <select id="autotradeAllocMode" onchange="toggleAllocValueVisibility(this, document.getElementById('autotradeAllocValue'))">
+          <option value="">Default size</option>
+          <option value="dollars">$ Amount</option>
+          <option value="shares"># Shares</option>
+        </select>
+        <input type="number" id="autotradeAllocValue" class="alloc-value-input" min="0.0001" step="any" style="display:none;">
         <button onclick="addAutotradeTicker()">Add</button>
         <span id="autotradeAddStatus"></span>
       </div>
@@ -296,7 +311,7 @@ async function loadConfig() {
     `Scheduled to run daily at ${cfg.run_time} (Central Time) when enabled.`;
 
   document.getElementById('strategyConfig').innerHTML = `
-    <div><strong>Max per position:</strong> $${cfg.max_per_ticker.toLocaleString()}</div>
+    <div><strong>Default max per position:</strong> $${cfg.max_per_ticker.toLocaleString()} (unless a ticker has its own $ or share override)</div>
     <div><strong>Minimum trade size:</strong> $${cfg.min_trade_dollars}</div>
     <div><strong>Take Profit / Stop Loss exit target:</strong> +${cfg.take_profit_pct}% / -${cfg.stop_loss_pct}%</div>
   `;
@@ -529,17 +544,40 @@ function renderAutotradeWatchlist() {
     return;
   }
 
-  let html = '<table><tr><th>Ticker</th><th>Entry Strategy</th><th>Exit Strategy</th><th></th></tr>';
+  let html = '<table><tr><th>Ticker</th><th>Entry Strategy</th><th>Exit Strategy</th><th>Allocation</th><th></th></tr>';
   AUTOTRADE_WATCHLIST.forEach(r => {
+    const mode = r.allocation_mode || '';
+    const value = r.allocation_value != null ? r.allocation_value : '';
     html += `<tr>
       <td>${r.ticker}</td>
       <td><select onchange="updateAutotradeTicker('${r.ticker}', 'entry_strategy', this.value)">${strategyOptionsHtml(ENTRY_STRATEGIES, r.entry_strategy)}</select></td>
       <td><select onchange="updateAutotradeTicker('${r.ticker}', 'exit_strategy', this.value)">${strategyOptionsHtml(EXIT_STRATEGIES, r.exit_strategy)}</select></td>
+      <td>
+        <select id="alloc-mode-${r.ticker}" onchange="updateAutotradeAllocation('${r.ticker}')">
+          <option value="" ${!mode ? 'selected' : ''}>Default</option>
+          <option value="dollars" ${mode === 'dollars' ? 'selected' : ''}>$ Amount</option>
+          <option value="shares" ${mode === 'shares' ? 'selected' : ''}># Shares</option>
+        </select>
+        <input type="number" id="alloc-value-${r.ticker}" class="alloc-value-input" min="0.0001" step="any"
+               value="${value}" placeholder="${allocPlaceholder(mode)}"
+               style="display:${mode ? 'inline-block' : 'none'};"
+               onchange="updateAutotradeAllocation('${r.ticker}')">
+      </td>
       <td><button class="danger" onclick="removeAutotradeTicker('${r.ticker}')">Remove</button></td>
     </tr>`;
   });
   html += '</table>';
   container.innerHTML = html;
+}
+
+function allocPlaceholder(mode) {
+  return mode === 'shares' ? '# of shares' : mode === 'dollars' ? '$ amount' : '';
+}
+
+function toggleAllocValueVisibility(selectEl, inputEl) {
+  inputEl.style.display = selectEl.value ? 'inline-block' : 'none';
+  inputEl.placeholder = allocPlaceholder(selectEl.value);
+  if (!selectEl.value) inputEl.value = '';
 }
 
 async function loadAutotradeWatchlist() {
@@ -554,6 +592,17 @@ async function addAutotradeTicker() {
   const statusEl = document.getElementById('autotradeAddStatus');
   if (!ticker) return;
 
+  const allocModeEl = document.getElementById('autotradeAllocMode');
+  const allocValueEl = document.getElementById('autotradeAllocValue');
+  const allocMode = allocModeEl.value || null;
+  const allocValue = allocMode && allocValueEl.value ? parseFloat(allocValueEl.value) : null;
+
+  if (allocMode && (!allocValue || allocValue <= 0)) {
+    statusEl.textContent = 'Enter a positive allocation amount, or set the allocation dropdown back to Default.';
+    setTimeout(() => statusEl.textContent = '', 4000);
+    return;
+  }
+
   await fetch('/api/autotrade/watchlist', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -561,10 +610,15 @@ async function addAutotradeTicker() {
       ticker,
       entry_strategy: document.getElementById('autotradeEntrySelect').value,
       exit_strategy: document.getElementById('autotradeExitSelect').value,
+      allocation_mode: allocMode,
+      allocation_value: allocValue,
     })
   });
 
   input.value = '';
+  allocModeEl.value = '';
+  allocValueEl.value = '';
+  allocValueEl.style.display = 'none';
   statusEl.textContent = `Added ${ticker}.`;
   setTimeout(() => statusEl.textContent = '', 3000);
   await loadAutotradeWatchlist();
@@ -575,10 +629,51 @@ async function updateAutotradeTicker(ticker, field, value) {
   if (!row) return;
   row[field] = value;
 
+  // Include the row's existing allocation so changing just the entry/exit
+  // strategy doesn't wipe out an allocation override already set on it.
   await fetch('/api/autotrade/watchlist', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ticker: row.ticker, entry_strategy: row.entry_strategy, exit_strategy: row.exit_strategy })
+    body: JSON.stringify({
+      ticker: row.ticker,
+      entry_strategy: row.entry_strategy,
+      exit_strategy: row.exit_strategy,
+      allocation_mode: row.allocation_mode || null,
+      allocation_value: row.allocation_value != null ? row.allocation_value : null,
+    })
+  });
+}
+
+async function updateAutotradeAllocation(ticker) {
+  const modeEl = document.getElementById(`alloc-mode-${ticker}`);
+  const valueEl = document.getElementById(`alloc-value-${ticker}`);
+  const mode = modeEl.value || null;
+
+  valueEl.style.display = mode ? 'inline-block' : 'none';
+  valueEl.placeholder = allocPlaceholder(mode);
+
+  const rawValue = valueEl.value;
+  const value = mode && rawValue ? parseFloat(rawValue) : null;
+
+  // Don't save yet if a mode was picked but no valid amount has been typed --
+  // wait for the value input's own onchange (which calls this again).
+  if (mode && (!value || value <= 0)) return;
+
+  const row = AUTOTRADE_WATCHLIST.find(r => r.ticker === ticker);
+  if (!row) return;
+  row.allocation_mode = mode;
+  row.allocation_value = value;
+
+  await fetch('/api/autotrade/watchlist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ticker: row.ticker,
+      entry_strategy: row.entry_strategy,
+      exit_strategy: row.exit_strategy,
+      allocation_mode: mode,
+      allocation_value: value,
+    })
   });
 }
 

@@ -153,6 +153,8 @@ class AutotradeWatchlistItem(BaseModel):
     ticker: str
     entry_strategy: str
     exit_strategy: str
+    allocation_mode: str | None = None  # None (default cap), "dollars", or "shares"
+    allocation_value: float | None = None
 
 
 class LoginRequest(BaseModel):
@@ -560,7 +562,21 @@ def api_autotrade_add_watchlist(payload: AutotradeWatchlistItem, user_id: int = 
         raise HTTPException(status_code=400, detail="Unknown entry strategy.")
     if payload.exit_strategy not in signals.ALL_EXIT_STRATEGIES:
         raise HTTPException(status_code=400, detail="Unknown exit strategy.")
-    db.upsert_autotrade_ticker(user_id, ticker, payload.entry_strategy, payload.exit_strategy)
+
+    allocation_mode = payload.allocation_mode or None
+    allocation_value = payload.allocation_value
+    if allocation_mode not in (None, "dollars", "shares"):
+        raise HTTPException(status_code=400, detail="Unknown allocation mode.")
+    if allocation_mode is not None:
+        if allocation_value is None or allocation_value <= 0:
+            raise HTTPException(status_code=400, detail="Enter a positive allocation amount.")
+    else:
+        allocation_value = None
+
+    db.upsert_autotrade_ticker(
+        user_id, ticker, payload.entry_strategy, payload.exit_strategy,
+        allocation_mode, allocation_value,
+    )
     return {"status": "ok", "ticker": ticker}
 
 

@@ -108,9 +108,16 @@ def init_db():
             ticker TEXT NOT NULL,
             entry_strategy TEXT NOT NULL,
             exit_strategy TEXT NOT NULL,
+            allocation_mode TEXT,
+            allocation_value REAL,
             PRIMARY KEY (user_id, ticker)
         )
     """)
+    autotrade_watchlist_cols = _column_names(conn, "autotrade_watchlist")
+    if "allocation_mode" not in autotrade_watchlist_cols:
+        conn.execute("ALTER TABLE autotrade_watchlist ADD COLUMN allocation_mode TEXT")
+    if "allocation_value" not in autotrade_watchlist_cols:
+        conn.execute("ALTER TABLE autotrade_watchlist ADD COLUMN allocation_value REAL")
     conn.commit()
 
     _migrate_to_multi_user(conn)
@@ -422,14 +429,19 @@ def get_autotrade_watchlist(user_id):
     return [dict(row) for row in rows]
 
 
-def upsert_autotrade_ticker(user_id, ticker, entry_strategy, exit_strategy):
+def upsert_autotrade_ticker(user_id, ticker, entry_strategy, exit_strategy, allocation_mode=None, allocation_value=None):
+    """allocation_mode is None (use the global default cap), "dollars", or
+    "shares"; allocation_value is the corresponding amount, ignored when
+    allocation_mode is None."""
     conn = get_connection()
     conn.execute(
-        "INSERT INTO autotrade_watchlist (user_id, ticker, entry_strategy, exit_strategy) "
-        "VALUES (?, ?, ?, ?) "
+        "INSERT INTO autotrade_watchlist "
+        "(user_id, ticker, entry_strategy, exit_strategy, allocation_mode, allocation_value) "
+        "VALUES (?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(user_id, ticker) DO UPDATE SET "
-        "entry_strategy = excluded.entry_strategy, exit_strategy = excluded.exit_strategy",
-        (user_id, ticker.upper(), entry_strategy, exit_strategy),
+        "entry_strategy = excluded.entry_strategy, exit_strategy = excluded.exit_strategy, "
+        "allocation_mode = excluded.allocation_mode, allocation_value = excluded.allocation_value",
+        (user_id, ticker.upper(), entry_strategy, exit_strategy, allocation_mode, allocation_value),
     )
     conn.commit()
     conn.close()

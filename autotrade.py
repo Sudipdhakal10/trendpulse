@@ -7,8 +7,11 @@ list still exists per-user as regular rows in autotrade_watchlist, just
 no longer hardcoded.
 
   ENTRY: not currently held, and the ticker's chosen entry strategy
-         (one of signals.ALL_STRATEGIES) fires today -> buy up to
-         MAX_PER_TICKER dollars, using only currently available cash
+         (one of signals.ALL_STRATEGIES) fires today -> buy, using only
+         currently available cash. Sized per the ticker's own
+         allocation_mode/allocation_value if the user set one (a fixed
+         dollar amount or a fixed share quantity), else MAX_PER_TICKER
+         dollars by default.
   EXIT:  currently held, and the ticker's chosen exit strategy
          (one of signals.ALL_EXIT_STRATEGIES) fires today -> close it
   Exits are processed before entries so freed-up cash can be reused
@@ -129,6 +132,8 @@ def run_rotation_bot(user_id, api_key, secret_key):
     exits, entries = [], []
     entry_strategy_by_ticker = {row["ticker"]: row["entry_strategy"] for row in watchlist}
     exit_strategy_by_ticker = {row["ticker"]: row["exit_strategy"] for row in watchlist}
+    allocation_mode_by_ticker = {row["ticker"]: row["allocation_mode"] for row in watchlist}
+    allocation_value_by_ticker = {row["ticker"]: row["allocation_value"] for row in watchlist}
 
     for row in watchlist:
         t = row["ticker"]
@@ -186,10 +191,28 @@ def run_rotation_bot(user_id, api_key, secret_key):
                 log_lines.append(f"{t}: not enough cash left, skipping")
                 continue
 
-            allocation = min(MAX_PER_TICKER, available_cash)
+            mode = allocation_mode_by_ticker.get(t)
+            value = allocation_value_by_ticker.get(t)
+
             try:
                 price = get_latest_price(t)
-                qty = allocation / price
+
+                if mode == "shares":
+                    qty = value
+                    allocation = qty * price
+                    if allocation > available_cash:
+                        log_lines.append(
+                            f"{t}: {qty:g} shares would cost ${allocation:,.2f}, more than the "
+                            f"${available_cash:,.2f} available -- skipping"
+                        )
+                        continue
+                elif mode == "dollars":
+                    allocation = min(value, available_cash)
+                    qty = allocation / price
+                else:
+                    allocation = min(MAX_PER_TICKER, available_cash)
+                    qty = allocation / price
+
                 submit_order(user_id, client, t, qty, OrderSide.BUY, reason=f"Entry: {entry_strategy_by_ticker[t]}")
             except Exception as e:
                 # One failed buy (bad price data, an Alpaca rejection, etc.)
