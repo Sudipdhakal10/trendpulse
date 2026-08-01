@@ -278,7 +278,7 @@ async function loadConfig() {
   }
 
   document.getElementById('scheduleInfo').textContent =
-    `Scheduled to run daily at ${cfg.run_time} when enabled.`;
+    `Scheduled to run daily at ${cfg.run_time} (Central Time) when enabled.`;
 
   document.getElementById('strategyConfig').innerHTML = `
     <div><strong>Max per position:</strong> $${cfg.max_per_ticker.toLocaleString()}</div>

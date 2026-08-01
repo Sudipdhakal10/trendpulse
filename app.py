@@ -18,6 +18,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, HTTPException, Request, Depends
@@ -259,7 +260,15 @@ def check_ticker(user_id, ticker):
     if not enabled_strategies:
         return []
 
-    result = signals.evaluate_latest(ticker)
+    try:
+        result = signals.evaluate_latest(ticker)
+    except Exception as e:
+        # yfinance/Yahoo is known to be flaky on cloud IPs -- one bad
+        # ticker shouldn't stop the rest of this user's watchlist (or,
+        # since check_all() shares this same call across every user,
+        # every user processed after this one) from being checked.
+        print(f"Daily check failed for {ticker} (user {user_id}): {e}")
+        return []
     if result is None:
         return []
 
@@ -299,13 +308,27 @@ def check_all():
     button also uses (scoped to just that user)."""
     all_triggered = []
     for user in db.get_all_users():
-        all_triggered.extend(check_watchlist_for_user(user))
+        try:
+            all_triggered.extend(check_watchlist_for_user(user))
+        except Exception as e:
+            # One user's failure (bad data, a send_email hiccup, etc.)
+            # must not silently skip every other user still left in
+            # this loop -- that's exactly the kind of bug where nobody
+            # notices until someone says "I haven't gotten alerts lately."
+            print(f"Daily check failed for user {user['id']}: {e}")
     return all_triggered
 
 
 # ============ Scheduler ============
 
-scheduler = BackgroundScheduler()
+# Explicit timezone so DAILY_CHECK_TIME/AUTOTRADE_RUN_TIME/DB_BACKUP_TIME
+# mean Central Time regardless of whatever timezone the host container
+# defaults to (Railway's containers run in UTC unless told otherwise) --
+# without this, a scheduled run at e.g. "09:35" would actually fire at
+# 9:35 UTC (early hours in the US), not 9:35 Central as the times are
+# meant to be read.
+SCHEDULER_TIMEZONE = ZoneInfo("America/Chicago")
+scheduler = BackgroundScheduler(timezone=SCHEDULER_TIMEZONE)
 hour, minute = config.DAILY_CHECK_TIME.split(":")
 scheduler.add_job(check_all, "cron", hour=int(hour), minute=int(minute))
 
@@ -318,7 +341,12 @@ def scheduled_autotrade_run():
             continue
         if not user["alpaca_api_key"] or not user["alpaca_secret_key"]:
             continue
-        autotrade.run_rotation_bot(user["id"], user["alpaca_api_key"], user["alpaca_secret_key"])
+        try:
+            autotrade.run_rotation_bot(user["id"], user["alpaca_api_key"], user["alpaca_secret_key"])
+        except Exception as e:
+            # One user's bad keys/ticker/API hiccup must not stop every
+            # other user still left in this loop from trading that day.
+            print(f"Scheduled AutoTrade run failed for user {user['id']}: {e}")
 
 
 autotrade_hour, autotrade_minute = config.AUTOTRADE_RUN_TIME.split(":")
@@ -701,8 +729,9 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     print(f"Starting server. Open http://localhost:{port} in your browser.")
-    print(f"Daily automatic check scheduled for {config.DAILY_CHECK_TIME}.")
-    print(f"Daily database backup email scheduled for {config.DB_BACKUP_TIME}.")
+    print(f"Daily automatic check scheduled for {config.DAILY_CHECK_TIME} Central Time.")
+    print(f"AutoTrade scheduled to run at {config.AUTOTRADE_RUN_TIME} Central Time.")
+    print(f"Daily database backup email scheduled for {config.DB_BACKUP_TIME} Central Time.")
     # proxy_headers + forwarded_allow_ips="*": trust X-Forwarded-For from
     # whatever forwards to us. Safe here because Railway's edge is the
     # only way to reach this app -- there's no direct path that could

@@ -19,7 +19,9 @@ EMAIL_TO = os.environ.get("EMAIL_TO", EMAIL_ADDRESS)
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 
-# Time of day the daily check runs (24hr "HH:MM"), after market close (4pm ET)
+# Time of day the daily check runs (24hr "HH:MM", Central Time -- the
+# scheduler in app.py is explicitly pinned to America/Chicago regardless
+# of the host machine/container's own timezone), after market close.
 DAILY_CHECK_TIME = os.environ.get("DAILY_CHECK_TIME", "16:30")
 
 # Where the SQLite database file lives. On Railway, set this to a path
@@ -39,13 +41,15 @@ ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY", "")
 # genuinely ready, and even then, start small.
 PAPER_TRADING = os.environ.get("PAPER_TRADING", "true").lower() != "false"
 
-# Time of day the automated daily rotation check runs (24hr "HH:MM"),
-# ideally shortly after market open.
+# Time of day the automated daily rotation check runs (24hr "HH:MM",
+# Central Time -- see the DAILY_CHECK_TIME note above), ideally shortly
+# after market open.
 AUTOTRADE_RUN_TIME = os.environ.get("AUTOTRADE_RUN_TIME", "09:35")
 
 # Time of day a full database backup gets emailed to EMAIL_TO (24hr
-# "HH:MM"). Railway's own volume backups need a paid Pro plan; this is a
-# free substitute using the same Gmail credentials already set up above.
+# "HH:MM", Central Time -- see the DAILY_CHECK_TIME note above).
+# Railway's own volume backups need a paid Pro plan; this is a free
+# substitute using the same Gmail credentials already set up above.
 DB_BACKUP_TIME = os.environ.get("DB_BACKUP_TIME", "03:15")
 
 # Used only once, the very first time this app runs against a database

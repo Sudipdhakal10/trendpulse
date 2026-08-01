@@ -74,15 +74,22 @@ from entry price).
 | `EMAIL_ADDRESS` / `EMAIL_APP_PASSWORD` | Gmail account alerts are sent *from* | — |
 | `EMAIL_TO` | Fallback recipient (legacy; real users get alerts at their own registered email) | `EMAIL_ADDRESS` |
 | `SMTP_SERVER` / `SMTP_PORT` | SMTP settings | `smtp.gmail.com` / `587` |
-| `DAILY_CHECK_TIME` | When the daily Watchlist check runs (`HH:MM`) | `16:30` |
-| `AUTOTRADE_RUN_TIME` | When the daily AutoTrade run happens (`HH:MM`) | `09:35` |
-| `DB_BACKUP_TIME` | When the daily database backup email goes out (`HH:MM`) | `03:15` |
+| `DAILY_CHECK_TIME` | When the daily Watchlist check runs (`HH:MM`, Central Time) | `16:30` |
+| `AUTOTRADE_RUN_TIME` | When the daily AutoTrade run happens (`HH:MM`, Central Time) | `09:35` |
+| `DB_BACKUP_TIME` | When the daily database backup email goes out (`HH:MM`, Central Time) | `03:15` |
 | `DB_PATH` | Where the SQLite file lives | `watchlist.db` |
 | `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` | Shared market-data keys (Watchlist live prices only) | — |
 | `PAPER_TRADING` | Must be explicitly `false` to trade real money | `true` |
 | `APP_USERNAME` / `APP_PASSWORD` | One-time seed for an admin account when upgrading a pre-multi-user database — irrelevant on a fresh install | `admin` / `changeme` |
 | `SESSION_SECRET_KEY` | Signs session cookies — any long random string | *(change this)* |
 | `SESSION_COOKIE_SECURE` | Set `true` once deployed behind HTTPS | `false` |
+
+All three `*_TIME` variables above are always interpreted as **Central
+Time** — the scheduler is explicitly pinned to `America/Chicago`
+regardless of the host machine or container's own system timezone (e.g.
+Railway's containers default to UTC), so a schedule set to `09:35`
+always means 9:35 AM Central, not 9:35 wherever the server happens to
+think it is.
 
 ## Notes and limitations (running locally)
 
