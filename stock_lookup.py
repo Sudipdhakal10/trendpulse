@@ -1,5 +1,5 @@
 """
-Data for the Shop page: search any publicly traded symbol (not just
+Data for the Screener page: search any publicly traded symbol (not just
 watchlist tickers) and pull its chart, fundamentals, earnings history,
 quarterly financials, and news. All from yfinance (no API key needed),
 cached per-key so browsing around the page doesn't hammer Yahoo Finance
@@ -15,7 +15,7 @@ import market_data
 SEARCH_CACHE_TTL_SECONDS = 5 * 60
 SNAPSHOT_CACHE_TTL_SECONDS = 5 * 60
 CHART_CACHE_TTL_SECONDS = 5 * 60
-INTRADAY_CHART_CACHE_TTL_SECONDS = 60  # 1D range: short TTL so the Shop page's live-updating chart actually sees new bars
+INTRADAY_CHART_CACHE_TTL_SECONDS = 60  # 1D range: short TTL so the Screener page's live-updating chart actually sees new bars
 NEWS_CACHE_TTL_SECONDS = 15 * 60
 EARNINGS_CACHE_TTL_SECONDS = 60 * 60
 FINANCIALS_CACHE_TTL_SECONDS = 24 * 60 * 60
@@ -28,7 +28,7 @@ _earnings_cache = {}
 _financials_cache = {}
 
 # Unlike the rest of this app's caches (keyed by a bounded watchlist), the
-# Shop page lets anyone search ANY ticker/query -- with no eviction, every
+# Screener page lets anyone search ANY ticker/query -- with no eviction, every
 # distinct query or symbol ever looked up (across every visitor, forever)
 # would sit in memory permanently. That's exactly the kind of slow leak
 # that previously took the whole site down with an OOM crash, just on a

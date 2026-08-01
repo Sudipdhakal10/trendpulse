@@ -48,7 +48,7 @@ their own entry/exit strategy per ticker.
   strategy. Runs automatically once a day (`AUTOTRADE_RUN_TIME`), or
   **Run Now** to test. Defaults to paper trading — see the safety note
   below before ever changing that.
-- **Shop** (`/shop`) — search any publicly traded stock (not just your
+- **Screener** (`/screener`) — search any publicly traded stock (not just your
   watchlist) by ticker or company name. Shows a price chart (1D through
   5Y), key stats (market cap, volume, 52-week range, PE ratio, EPS),
   recent earnings, quarterly revenue/net income, and company news, with

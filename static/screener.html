@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TrendPulse — Shop</title>
+<title>TrendPulse — Screener</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
 <style>
   * { box-sizing: border-box; }
@@ -129,11 +129,12 @@
   .range-buttons button.active { background: #3b6ef6; }
   #chartContainer { max-width: 100%; }
   #chartContainer svg { width: 100%; max-width: 100%; height: 240px; display: block; cursor: crosshair; touch-action: none; }
-  .chart-label, .chart-hover-label {
+  .chart-hover-label {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 11px;
+    fill: #ccc;
+    font-weight: 600;
   }
-  .chart-label { font-size: 10.5px; fill: #888; }
-  .chart-hover-label { font-size: 11px; fill: #ccc; font-weight: 600; }
   .live-badge { display: none; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #4ade80; }
   .live-dot { animation: livePulse 1.4s ease-in-out infinite; }
   @keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
@@ -181,11 +182,11 @@
   </div>
 </div>
 
-<h1>Shop</h1>
+<h1>Screener</h1>
 <div class="nav">
   <a href="/watchlist">Watchlist</a>
   <a href="/autotrade">AutoTrade</a>
-  <a href="/shop" class="active">Shop</a>
+  <a href="/screener" class="active">Screener</a>
   <div class="nav-right">
     <a href="/profile" class="nav-icon" title="Profile">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -497,16 +498,6 @@ function startLiveUpdatesIfNeeded() {
   }, LIVE_UPDATE_INTERVAL_MS);
 }
 
-function formatChartDate(iso) {
-  const d = new Date(iso);
-  if (currentRange === '1D') {
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  }
-  const opts = { month: 'short', day: 'numeric' };
-  if (currentRange === '1Y' || currentRange === '5Y') opts.year = 'numeric';
-  return d.toLocaleDateString('en-US', opts);
-}
-
 function formatChartDateFull(iso) {
   const d = new Date(iso);
   if (currentRange === '1D') {
@@ -548,17 +539,14 @@ function renderChart(points) {
     return;
   }
 
-  // LEFT_GUTTER reserves room for the $max/$min axis labels so the plotted
-  // line/area never passes behind them (was overlapping when a high/low
-  // landed near the top-left corner where the labels sit).
-  const W = 600, H = 240, PAD_TOP = 20, PAD_BOTTOM = 26, LEFT_GUTTER = 44, RIGHT_PAD = 6;
+  const W = 600, H = 240, PAD_TOP = 20, PAD_BOTTOM = 10, PAD_X = 6;
   const closes = points.map(p => p.c);
   const min = Math.min(...closes);
   const max = Math.max(...closes);
   const range = (max - min) || 1;
   const baseline = H - PAD_BOTTOM;
 
-  const xAt = i => LEFT_GUTTER + (i / (points.length - 1)) * (W - LEFT_GUTTER - RIGHT_PAD);
+  const xAt = i => PAD_X + (i / (points.length - 1)) * (W - PAD_X * 2);
   const yAt = c => PAD_TOP + (1 - (c - min) / range) * (H - PAD_TOP - PAD_BOTTOM);
 
   chartCoords = points.map((p, i) => ({ x: xAt(i), y: yAt(p.c) }));
@@ -571,9 +559,6 @@ function renderChart(points) {
   const isUp = closes[closes.length - 1] >= closes[0];
   const color = isUp ? '#4ade80' : '#f87171';
   const gradId = 'chartGrad-' + currentRange;
-
-  const firstLabel = formatChartDate(points[0].t);
-  const lastLabel = formatChartDate(points[points.length - 1].t);
 
   container.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="chartSvg"
@@ -590,10 +575,6 @@ function renderChart(points) {
       <line id="hoverGuide" x1="0" y1="${PAD_TOP}" x2="0" y2="${baseline}" stroke="#666" stroke-width="1" stroke-dasharray="3,3" opacity="0" />
       <circle id="hoverDot" r="4.5" fill="${color}" stroke="#0f1115" stroke-width="2" opacity="0" />
       <text id="hoverDateLabel" x="0" y="${PAD_TOP}" class="chart-hover-label" text-anchor="middle" opacity="0"></text>
-      <text x="4" y="${PAD_TOP + 2}" class="chart-label">H $${max.toFixed(2)}</text>
-      <text x="4" y="${baseline - 2}" class="chart-label">L $${min.toFixed(2)}</text>
-      <text x="${LEFT_GUTTER}" y="${H - 6}" class="chart-label">${firstLabel}</text>
-      <text x="${W - RIGHT_PAD}" y="${H - 6}" class="chart-label" text-anchor="end">${lastLabel}</text>
     </svg>
   `;
 

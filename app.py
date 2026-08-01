@@ -657,13 +657,13 @@ def serve_watchlist(request: Request):
     return FileResponse("static/index.html")
 
 
-@app.get("/shop")
-def serve_shop(request: Request):
+@app.get("/screener")
+def serve_screener(request: Request):
     if not is_logged_in(request):
         response = RedirectResponse("/login")
         response.headers["Cache-Control"] = "no-store"
         return response
-    return FileResponse("static/shop.html")
+    return FileResponse("static/screener.html")
 
 
 @app.get("/autotrade")

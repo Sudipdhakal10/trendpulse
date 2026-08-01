@@ -73,7 +73,7 @@ def _fetch_sp500_tickers():
 def parse_yf_news_items(raw_items, seen_titles=None):
     """Normalizes yfinance's per-ticker .news list into {title, link,
     publisher} dicts, deduped by title. Shared by the market-wide news
-    feed here and the Shop page's per-ticker news -- yfinance's news
+    feed here and the Screener page's per-ticker news -- yfinance's news
     schema has changed across versions, so this handles both the older
     flat format and the newer nested "content" format in one place."""
     if seen_titles is None:
