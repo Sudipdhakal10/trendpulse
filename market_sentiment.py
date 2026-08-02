@@ -26,9 +26,18 @@ import time
 import yfinance as yf
 
 CACHE_TTL_SECONDS = 15 * 60
+# Yahoo's unofficial API is known to slow-walk/rate-limit cloud IPs under
+# repeated traffic (see market_data.py's momentum scan for the same issue)
+# -- firing 4 requests back-to-back for the options table can trip that,
+# so a failed ticker is retried much sooner than a successful one's normal
+# 15-minute TTL, instead of sitting broken for the full cache window.
+OPTIONS_ERROR_CACHE_TTL_SECONDS = 90
+OPTIONS_REQUEST_SPACING_SECONDS = 0.4
+OPTIONS_FETCH_ATTEMPTS = 2
+OPTIONS_RETRY_DELAY_SECONDS = 1.5
 
 _fear_greed_cache = {"data": None, "timestamp": 0}
-_options_cache = {"data": None, "timestamp": 0}
+_options_cache = {}  # symbol -> {"data": {...}, "timestamp": float, "is_error": bool}
 
 MAJOR_INDEX_ETFS = ["SPY", "QQQ", "DIA", "IWM"]
 
@@ -163,19 +172,41 @@ def _fetch_options_row(symbol):
     }
 
 
+def _fetch_options_row_with_retry(symbol):
+    last_error = None
+    for attempt in range(OPTIONS_FETCH_ATTEMPTS):
+        try:
+            return _fetch_options_row(symbol)
+        except Exception as e:
+            last_error = e
+            if attempt < OPTIONS_FETCH_ATTEMPTS - 1:
+                time.sleep(OPTIONS_RETRY_DELAY_SECONDS)
+    raise last_error
+
+
 def get_options_sentiment():
     now = time.time()
-    if _options_cache["data"] is not None and (now - _options_cache["timestamp"]) < CACHE_TTL_SECONDS:
-        return _options_cache["data"]
-
     result = []
-    for symbol in MAJOR_INDEX_ETFS:
+
+    for i, symbol in enumerate(MAJOR_INDEX_ETFS):
+        cached = _options_cache.get(symbol)
+        ttl = OPTIONS_ERROR_CACHE_TTL_SECONDS if cached and cached["is_error"] else CACHE_TTL_SECONDS
+        if cached and (now - cached["timestamp"]) < ttl:
+            result.append(cached["data"])
+            continue
+
         try:
-            result.append(_fetch_options_row(symbol))
+            row = _fetch_options_row_with_retry(symbol)
+            _options_cache[symbol] = {"data": row, "timestamp": now, "is_error": False}
         except Exception as e:
             print(f"Options sentiment fetch failed for {symbol}: {e}")
-            result.append({"ticker": symbol, "error": "Could not load options data."})
+            row = {"ticker": symbol, "error": "Could not load options data."}
+            _options_cache[symbol] = {"data": row, "timestamp": now, "is_error": True}
+        result.append(row)
 
-    _options_cache["data"] = result
-    _options_cache["timestamp"] = now
+        # Space out sequential requests to the same upstream host so this
+        # doesn't itself look like the rapid-fire traffic Yahoo rate-limits.
+        if i < len(MAJOR_INDEX_ETFS) - 1:
+            time.sleep(OPTIONS_REQUEST_SPACING_SECONDS)
+
     return result
