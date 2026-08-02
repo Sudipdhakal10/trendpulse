@@ -670,19 +670,22 @@ def api_admin_list_users(_=Depends(require_admin)):
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+NO_STORE_HEADERS = {"Cache-Control": "no-store"}
+
+
 @app.get("/")
 def serve_home():
-    return FileResponse("static/home.html")
+    return FileResponse("static/home.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/login")
 def serve_login():
-    return FileResponse("static/login.html")
+    return FileResponse("static/login.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/register")
 def serve_register():
-    return FileResponse("static/register.html")
+    return FileResponse("static/register.html", headers=NO_STORE_HEADERS)
 
 
 @app.post("/api/login")
@@ -741,7 +744,7 @@ def serve_watchlist(request: Request):
         response = RedirectResponse("/login")
         response.headers["Cache-Control"] = "no-store"
         return response
-    return FileResponse("static/index.html")
+    return FileResponse("static/index.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/screener")
@@ -750,7 +753,7 @@ def serve_screener(request: Request):
         response = RedirectResponse("/login")
         response.headers["Cache-Control"] = "no-store"
         return response
-    return FileResponse("static/screener.html")
+    return FileResponse("static/screener.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/sentiment")
@@ -759,7 +762,7 @@ def serve_sentiment(request: Request):
         response = RedirectResponse("/login")
         response.headers["Cache-Control"] = "no-store"
         return response
-    return FileResponse("static/sentiment.html")
+    return FileResponse("static/sentiment.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/autotrade")
@@ -768,7 +771,7 @@ def serve_autotrade(request: Request):
         response = RedirectResponse("/login")
         response.headers["Cache-Control"] = "no-store"
         return response
-    return FileResponse("static/autotrade.html")
+    return FileResponse("static/autotrade.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/profile")
@@ -777,7 +780,7 @@ def serve_profile(request: Request):
         response = RedirectResponse("/login")
         response.headers["Cache-Control"] = "no-store"
         return response
-    return FileResponse("static/profile.html")
+    return FileResponse("static/profile.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/admin/users")
@@ -790,7 +793,7 @@ def serve_admin_users(request: Request):
         response = RedirectResponse("/watchlist")
         response.headers["Cache-Control"] = "no-store"
         return response
-    return FileResponse("static/admin_users.html")
+    return FileResponse("static/admin_users.html", headers=NO_STORE_HEADERS)
 
 
 if __name__ == "__main__":
