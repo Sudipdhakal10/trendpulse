@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrendPulse — Sentiment</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%2312151c'/%3E%3Cpath d='M4 16H9L11 10L14.5 20L17 8L19.5 16H24' stroke='%2335e28a' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='17' cy='8' r='1.7' fill='%23ff9f40'/%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+    max-width: 1280px;
+    margin: 64px auto 40px;
+    padding: 0 20px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #999; margin-bottom: 24px; font-size: 14px; }
+  .panel {
+    background: #171a21;
+    border: 1px solid #2a2e38;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 15px; margin-top: 0; color: #ccc; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; }
+  .empty { color: #777; font-size: 13px; padding: 10px 0; }
+  .nav { margin-bottom: 20px; display: flex; flex-wrap: wrap; row-gap: 8px; align-items: center; }
+  .nav a { color: #999; text-decoration: none; margin-right: 20px; font-size: 14px; padding-bottom: 4px; }
+  .nav a.active { color: #e6e6e6; border-bottom: 2px solid #3b6ef6; }
+  .nav a:hover { color: #e6e6e6; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+  .nav-icon { margin-right: 0 !important; display: flex; align-items: center; padding-bottom: 4px; }
+  .nav-icon svg { display: block; }
+  .tp-brand {
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    line-height: 1.3;
+  }
+  .tp-logo { flex-shrink: 0; display: block; }
+  .tp-brand-name { display: block; font-weight: 700; font-size: 14px; color: #e6e6e6; letter-spacing: -0.3px; }
+  .tp-brand-tag { display: block; font-size: 10.5px; color: #6b7280; }
+
+  /* Fear & Greed gauge */
+  .fg-gauge { text-align: center; padding: 6px 0 22px; }
+  .fg-score { font-size: 60px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .fg-label { font-size: 16px; font-weight: 700; margin-top: 2px; margin-bottom: 22px; }
+  .fg-bar {
+    position: relative;
+    height: 14px;
+    border-radius: 7px;
+    background: linear-gradient(to right, #f87171, #f0a742, #e6e6e6, #8fd97f, #4ade80);
+    margin: 0 6px;
+  }
+  .fg-marker {
+    position: absolute;
+    top: -6px;
+    width: 4px;
+    height: 26px;
+    background: #fff;
+    border-radius: 2px;
+    box-shadow: 0 0 6px rgba(0,0,0,0.6);
+  }
+  .fg-bar-labels { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 8px; padding: 0 2px; }
+
+  .fg-components {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-top: 4px;
+  }
+  .fg-component { background: #12151c; border: 1px solid #21252e; border-radius: 8px; padding: 12px 14px; }
+  .fg-component-label { font-size: 12px; color: #999; margin-bottom: 4px; }
+  .fg-component-value { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .fg-component-bar { height: 6px; border-radius: 3px; background: #22262f; overflow: hidden; }
+  .fg-component-fill { height: 100%; border-radius: 3px; }
+
+  /* Options table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #optionsTable { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  th, td { padding: 9px 8px; text-align: right; border-bottom: 1px solid #262a33; }
+  th { color: #999; font-weight: 500; }
+  td:first-child, th:first-child { text-align: left; font-weight: 600; }
+  .call-color { color: #4ade80; }
+  .put-color { color: #f87171; }
+  .split-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; width: 100%; min-width: 80px; background: #22262f; }
+  .split-call { background: #4ade80; height: 100%; }
+  .split-put { background: #f87171; height: 100%; }
+  .split-cell { min-width: 100px; }
+  .legend { display: flex; gap: 18px; font-size: 12px; color: #999; margin-bottom: 14px; }
+  .legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+</style>
+</head>
+<body>
+
+<div class="tp-brand">
+  <svg class="tp-logo" width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="0.5" y="0.5" width="27" height="27" rx="7" fill="#12151c" stroke="#2a2e38"/>
+    <path d="M4 16H9L11 10L14.5 20L17 8L19.5 16H24" stroke="#35e28a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="17" cy="8" r="1.7" fill="#ff9f40"/>
+  </svg>
+  <div>
+    <span class="tp-brand-name">TrendPulse</span>
+    <span class="tp-brand-tag">Trade the plan, not the moment.</span>
+  </div>
+</div>
+
+<h1>Sentiment</h1>
+<div class="nav">
+  <a href="/watchlist">Watchlist</a>
+  <a href="/autotrade">AutoTrade</a>
+  <a href="/screener">Screener</a>
+  <a href="/sentiment" class="active">Sentiment</a>
+  <div class="nav-right">
+    <a href="/profile" class="nav-icon" title="Profile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+      </svg>
+    </a>
+    <a href="/logout">Log Out</a>
+  </div>
+</div>
+<div class="subtitle">Our own Fear &amp; Greed-style read on the market, plus call/put options activity on the major indices.</div>
+
+<div class="panel">
+  <h2>Fear &amp; Greed</h2>
+  <div class="subtitle" style="margin-bottom:12px;">Not CNN's index — our own 0-100 score built from VIX, S&amp;P 500 momentum, and the SPY options put/call ratio.</div>
+  <div class="fg-gauge">
+    <div class="fg-score" id="fgScore">—</div>
+    <div class="fg-label" id="fgLabel">Loading...</div>
+    <div class="fg-bar"><div class="fg-marker" id="fgMarker" style="left:50%;"></div></div>
+    <div class="fg-bar-labels"><span>Extreme Fear</span><span>Neutral</span><span>Extreme Greed</span></div>
+  </div>
+  <div class="fg-components" id="fgComponents"></div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <h2>Options Activity — Major Indices</h2>
+    <button class="secondary" onclick="loadAll()" style="background:#2a2e38; color:#eee; border:none; padding:5px 12px; border-radius:6px; font-size:12.5px; cursor:pointer;">Refresh</button>
+  </div>
+  <div class="subtitle" style="margin-bottom:10px;">Call vs. put volume for the nearest options expiration on each major index ETF.</div>
+  <div class="legend">
+    <span><span class="legend-dot" style="background:#4ade80;"></span>Calls</span>
+    <span><span class="legend-dot" style="background:#f87171;"></span>Puts</span>
+  </div>
+  <div id="optionsTable"><div class="empty">Loading...</div></div>
+</div>
+
+<script>
+function fmtVol(n) {
+  if (n === null || n === undefined) return '—';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toFixed(0);
+}
+
+function colorForScore(score) {
+  if (score < 25) return '#f87171';
+  if (score < 45) return '#f0a742';
+  if (score < 55) return '#e6e6e6';
+  if (score < 75) return '#8fd97f';
+  return '#4ade80';
+}
+
+async function loadFearGreed() {
+  const scoreEl = document.getElementById('fgScore');
+  const labelEl = document.getElementById('fgLabel');
+  const markerEl = document.getElementById('fgMarker');
+  const componentsEl = document.getElementById('fgComponents');
+
+  const res = await fetch('/api/fear-greed');
+  const data = await res.json();
+
+  if (data.score === null || data.score === undefined) {
+    scoreEl.textContent = '—';
+    scoreEl.style.color = '#888';
+    labelEl.textContent = 'Unavailable right now';
+    labelEl.style.color = '#888';
+    componentsEl.innerHTML = '<div class="empty">Could not load any sentiment components — try refreshing shortly.</div>';
+    return;
+  }
+
+  const color = colorForScore(data.score);
+  scoreEl.textContent = data.score;
+  scoreEl.style.color = color;
+  labelEl.textContent = data.label;
+  labelEl.style.color = color;
+  markerEl.style.left = `calc(${data.score}% - 2px)`;
+
+  const order = ['vix', 'momentum', 'put_call'];
+  componentsEl.innerHTML = order.map(key => {
+    const c = data.components[key];
+    if (!c || c.score === null || c.score === undefined) {
+      return `<div class="fg-component"><div class="fg-component-label">${key}</div><div class="empty">Unavailable</div></div>`;
+    }
+    const unit = key === 'momentum' ? '%' : '';
+    const displayValue = key === 'momentum' && c.value >= 0 ? '+' + c.value : c.value;
+    return `
+      <div class="fg-component">
+        <div class="fg-component-label">${c.label}</div>
+        <div class="fg-component-value">${displayValue}${unit}</div>
+        <div class="fg-component-bar"><div class="fg-component-fill" style="width:${c.score}%; background:${colorForScore(c.score)};"></div></div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadOptionsSentiment() {
+  const container = document.getElementById('optionsTable');
+  const res = await fetch('/api/options-sentiment');
+  const data = await res.json();
+
+  let html = '<table><tr><th>Index</th><th>Expiration</th><th>Call Vol</th><th>Put Vol</th><th>Put/Call</th><th class="split-cell">Split</th></tr>';
+  data.forEach(row => {
+    if (row.error) {
+      html += `<tr><td>${row.ticker}</td><td colspan="5" class="empty">${row.error}</td></tr>`;
+      return;
+    }
+    const total = row.call_volume + row.put_volume;
+    const callPct = total ? (row.call_volume / total * 100) : 50;
+    html += `<tr>
+      <td>${row.ticker}</td>
+      <td>${row.expiration}</td>
+      <td class="call-color">${fmtVol(row.call_volume)}</td>
+      <td class="put-color">${fmtVol(row.put_volume)}</td>
+      <td>${row.put_call_ratio !== null ? row.put_call_ratio.toFixed(2) : '—'}</td>
+      <td class="split-cell">
+        <div class="split-bar">
+          <div class="split-call" style="width:${callPct}%;"></div>
+          <div class="split-put" style="width:${100 - callPct}%;"></div>
+        </div>
+      </td>
+    </tr>`;
+  });
+  html += '</table>';
+  container.innerHTML = html;
+}
+
+function loadAll() {
+  loadFearGreed();
+  loadOptionsSentiment();
+}
+
+loadAll();
+</script>
+
+</body>
+</html>

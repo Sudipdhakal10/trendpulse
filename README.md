@@ -56,6 +56,12 @@ their own entry/exit strategy per ticker.
   recent earnings, quarterly revenue/net income, and company news, with
   a one-click **+ Add to Watchlist**. Data comes from yfinance, cached
   per ticker for a few minutes so browsing doesn't hammer Yahoo Finance.
+- **Sentiment** (`/sentiment`) — a homegrown 0-100 Fear &amp; Greed-style
+  score (VIX level, S&amp;P 500 momentum vs. its 125-day average, and the
+  SPY options put/call ratio, averaged) plus call/put options volume for
+  the major index ETFs (SPY, QQQ, DIA, IWM). Not CNN's actual index —
+  there's no public API for that — this is our own proxy from data we
+  already have reliable free access to via yfinance.
 - **Profile** (`/profile`) — name, email, phone, address, and password.
 
 ## Strategies available

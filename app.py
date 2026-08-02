@@ -33,6 +33,7 @@ import db
 import alpaca_data
 import autotrade
 import market_data
+import market_sentiment
 import signals
 import stock_lookup
 
@@ -449,6 +450,16 @@ def api_momentum(_=Depends(require_api_login)):
     return market_data.get_momentum_movers()
 
 
+@app.get("/api/fear-greed")
+def api_fear_greed(_=Depends(require_api_login)):
+    return market_sentiment.get_fear_greed_index()
+
+
+@app.get("/api/options-sentiment")
+def api_options_sentiment(_=Depends(require_api_login)):
+    return market_sentiment.get_options_sentiment()
+
+
 @app.get("/api/stock-search")
 def api_stock_search(q: str = "", _=Depends(require_api_login)):
     return stock_lookup.search_symbols(q)
@@ -740,6 +751,15 @@ def serve_screener(request: Request):
         response.headers["Cache-Control"] = "no-store"
         return response
     return FileResponse("static/screener.html")
+
+
+@app.get("/sentiment")
+def serve_sentiment(request: Request):
+    if not is_logged_in(request):
+        response = RedirectResponse("/login")
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    return FileResponse("static/sentiment.html")
 
 
 @app.get("/autotrade")
