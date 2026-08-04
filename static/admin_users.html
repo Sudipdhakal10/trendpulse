@@ -37,7 +37,15 @@
   .nav a { color: #999; text-decoration: none; margin-right: 20px; font-size: 14px; padding-bottom: 4px; }
   .nav a.active { color: #e6e6e6; border-bottom: 2px solid #3b6ef6; }
   .nav a:hover { color: #e6e6e6; }
-  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+  .nav-right {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
   .nav-icon { margin-right: 0 !important; display: flex; align-items: center; padding-bottom: 4px; }
   .nav-icon svg { display: block; }
   .tp-brand {
