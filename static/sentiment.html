@@ -95,6 +95,18 @@
   .split-put { background: #f87171; height: 100%; }
   .split-cell { min-width: 100px; }
   .legend { display: flex; gap: 18px; font-size: 12px; color: #999; margin-bottom: 14px; }
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #333;
+    border-top-color: #6fa1ff;
+    border-radius: 50%;
+    margin-left: 8px;
+    vertical-align: middle;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
 </style>
 </head>
@@ -145,7 +157,10 @@
 <div class="panel">
   <div class="panel-header">
     <h2>Options Activity — Major Indices</h2>
-    <button class="secondary" onclick="loadAll()" style="background:#2a2e38; color:#eee; border:none; padding:5px 12px; border-radius:6px; font-size:12.5px; cursor:pointer;">Refresh</button>
+    <span>
+      <button class="secondary" id="refreshBtn" onclick="loadAll()" style="background:#2a2e38; color:#eee; border:none; padding:5px 12px; border-radius:6px; font-size:12.5px; cursor:pointer;">Refresh</button>
+      <span class="spinner" id="refreshSpinner" style="display:none;"></span>
+    </span>
   </div>
   <div class="subtitle" style="margin-bottom:10px;">Call vs. put volume for the nearest options expiration on each major index ETF.</div>
   <div class="legend">
@@ -177,8 +192,19 @@ async function loadFearGreed() {
   const markerEl = document.getElementById('fgMarker');
   const componentsEl = document.getElementById('fgComponents');
 
-  const res = await fetch('/api/fear-greed');
-  const data = await res.json();
+  let data;
+  try {
+    const res = await fetch('/api/fear-greed');
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    data = await res.json();
+  } catch (e) {
+    scoreEl.textContent = '—';
+    scoreEl.style.color = '#888';
+    labelEl.textContent = 'Could not load — try refreshing shortly.';
+    labelEl.style.color = '#888';
+    componentsEl.innerHTML = '';
+    return;
+  }
 
   if (data.score === null || data.score === undefined) {
     scoreEl.textContent = '—';
@@ -216,8 +242,16 @@ async function loadFearGreed() {
 
 async function loadOptionsSentiment() {
   const container = document.getElementById('optionsTable');
-  const res = await fetch('/api/options-sentiment');
-  const data = await res.json();
+
+  let data;
+  try {
+    const res = await fetch('/api/options-sentiment');
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    data = await res.json();
+  } catch (e) {
+    container.innerHTML = '<div class="empty">Could not load options activity — try refreshing shortly.</div>';
+    return;
+  }
 
   let html = '<table><tr><th>Index</th><th>Expiration</th><th>Call Vol</th><th>Put Vol</th><th>Put/Call</th><th class="split-cell">Split</th></tr>';
   data.forEach(row => {
@@ -245,9 +279,19 @@ async function loadOptionsSentiment() {
   container.innerHTML = html;
 }
 
-function loadAll() {
-  loadFearGreed();
-  loadOptionsSentiment();
+async function loadAll() {
+  const btn = document.getElementById('refreshBtn');
+  const spinner = document.getElementById('refreshSpinner');
+  if (btn.disabled) return;
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  try {
+    await Promise.allSettled([loadFearGreed(), loadOptionsSentiment()]);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
 }
 
 loadAll();

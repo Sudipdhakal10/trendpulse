@@ -384,12 +384,17 @@ async function toggleStrategy(ticker, strategy, enabled) {
 async function checkNow() {
   const status = document.getElementById('status');
   status.textContent = 'Checking...';
-  const res = await fetch('/api/check-now', { method: 'POST' });
-  const data = await res.json();
-  status.textContent = data.count > 0
-    ? `${data.count} alert(s) triggered — check your email.`
-    : 'No triggers right now.';
-  loadAlerts();
+  try {
+    const res = await fetch('/api/check-now', { method: 'POST' });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const data = await res.json();
+    status.textContent = data.count > 0
+      ? `${data.count} alert(s) triggered — check your email.`
+      : 'No triggers right now.';
+    loadAlerts();
+  } catch (e) {
+    status.textContent = 'Check failed — try again in a moment.';
+  }
   setTimeout(() => status.textContent = '', 5000);
 }
 
