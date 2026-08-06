@@ -158,6 +158,13 @@ class AutotradeWatchlistItem(BaseModel):
     allocation_value: float | None = None
 
 
+class ManualTradeRequest(BaseModel):
+    ticker: str
+    side: str  # "buy" or "sell"
+    mode: str  # "dollars" or "shares"
+    value: float
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -322,30 +329,42 @@ def check_all():
     return all_triggered
 
 
-# ============ AutoTrade run guard ============
+# ============ Alpaca trading guard ============
 # run_rotation_bot() already checks Alpaca's own pending orders to avoid
 # re-buying something already in flight, but that only closes the gap
 # between separate sequential runs -- it doesn't stop two runs for the
 # SAME user starting close enough together that both snapshot "nothing
 # pending yet" before either's order has synced to Alpaca (a rapid
-# double-click on "Run Now", two open tabs, or a manual click landing at
-# the same moment as the scheduled run). This lock makes a second
-# concurrent run for a user a no-op instead of a second real order.
-_autotrade_run_lock = threading.Lock()
-_autotrade_running_users = set()
+# double-click on "Run Now" or a manual Buy/Sell, two open tabs, or a
+# manual trade landing at the same moment as the scheduled AutoTrade
+# run). This lock makes any second concurrent trade *of any kind* for a
+# user a no-op instead of a second real order -- a scheduled run and a
+# manual Screener trade for the same person must not overlap either.
+_trading_lock = threading.Lock()
+_users_trading = set()
+
+
+def _run_exclusive_for_user(user_id, fn, *args, **kwargs):
+    with _trading_lock:
+        if user_id in _users_trading:
+            return {"error": "A trade is already in progress for this account -- try again in a moment.", "log": []}
+        _users_trading.add(user_id)
+
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        with _trading_lock:
+            _users_trading.discard(user_id)
 
 
 def run_rotation_bot_exclusive(user_id, api_key, secret_key):
-    with _autotrade_run_lock:
-        if user_id in _autotrade_running_users:
-            return {"error": "AutoTrade is already running for this account -- try again in a moment.", "log": []}
-        _autotrade_running_users.add(user_id)
+    return _run_exclusive_for_user(user_id, autotrade.run_rotation_bot, user_id, api_key, secret_key)
 
-    try:
-        return autotrade.run_rotation_bot(user_id, api_key, secret_key)
-    finally:
-        with _autotrade_run_lock:
-            _autotrade_running_users.discard(user_id)
+
+def place_manual_order_exclusive(user_id, api_key, secret_key, ticker, side, mode, value):
+    return _run_exclusive_for_user(
+        user_id, autotrade.place_manual_order, user_id, api_key, secret_key, ticker, side, mode, value,
+    )
 
 
 # ============ Scheduler ============
@@ -512,6 +531,31 @@ def api_autotrade_run_now(user_id: int = Depends(require_api_login)):
         # is the last line of defense against anything unexpected still
         # surfacing as a raw 500 to a user manually clicking "Run Now".
         return {"error": f"AutoTrade run failed: {e}", "log": []}
+
+
+@app.post("/api/trade/manual")
+def api_manual_trade(payload: ManualTradeRequest, user_id: int = Depends(require_api_login)):
+    ticker = payload.ticker.strip().upper()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="Ticker is required.")
+    if payload.side not in ("buy", "sell"):
+        raise HTTPException(status_code=400, detail="Side must be 'buy' or 'sell'.")
+    if payload.mode not in ("dollars", "shares"):
+        raise HTTPException(status_code=400, detail="Mode must be 'dollars' or 'shares'.")
+    if payload.value is None or payload.value <= 0:
+        raise HTTPException(status_code=400, detail="Enter a positive amount.")
+
+    user = db.get_user_by_id(user_id)
+    try:
+        return place_manual_order_exclusive(
+            user_id, user["alpaca_api_key"], user["alpaca_secret_key"],
+            ticker, payload.side, payload.mode, payload.value,
+        )
+    except Exception as e:
+        # place_manual_order already returns {"error": ...} for expected
+        # failure modes -- this is the last line of defense against
+        # anything unexpected surfacing as a raw 500 to the browser.
+        return {"error": f"Trade failed: {e}"}
 
 
 @app.get("/api/autotrade/enabled")

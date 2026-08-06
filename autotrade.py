@@ -230,6 +230,67 @@ def run_rotation_bot(user_id, api_key, secret_key):
     return {"log": log_lines, "exits": exits, "entries": entries}
 
 
+def place_manual_order(user_id, api_key, secret_key, ticker, side, mode, value):
+    """Places a single manual market order for any ticker -- the Screener
+    page's Buy/Sell, independent of the AutoTrade watchlist/strategy loop.
+    mode is "dollars" or "shares", value is the corresponding amount.
+    Returns a result dict for the UI; never raises."""
+    client = get_trading_client(api_key, secret_key)
+    if client is None:
+        return {"error": "Alpaca API keys not set. Add them on the AutoTrade page."}
+
+    ticker = ticker.strip().upper()
+
+    try:
+        account = client.get_account()
+    except APIError as e:
+        return {"error": f"Alpaca rejected these API keys: {e}"}
+
+    try:
+        price = get_latest_price(ticker)
+    except Exception as e:
+        return {"error": f"Could not fetch a price for {ticker}: {e}"}
+
+    if side == "buy":
+        available_cash = float(account.cash)
+        if mode == "shares":
+            qty = value
+            cost = qty * price
+            if cost > available_cash:
+                return {"error": f"{qty:g} shares of {ticker} would cost ${cost:,.2f}, more than the ${available_cash:,.2f} available."}
+        else:
+            qty = value / price
+        order_side = OrderSide.BUY
+    else:
+        try:
+            positions = get_current_positions(client)
+        except APIError as e:
+            return {"error": f"Could not check current positions: {e}"}
+        held = positions.get(ticker)
+        if not held:
+            return {"error": f"You don't currently hold any {ticker}."}
+        max_qty = held["qty"]
+        if mode == "shares":
+            qty = value
+            if qty > max_qty:
+                return {"error": f"You only hold {max_qty:g} shares of {ticker}."}
+        else:
+            qty = value / price
+            if qty > max_qty:
+                return {"error": f"That's more than your {max_qty:g}-share position in {ticker} (worth ~${max_qty * price:,.2f})."}
+        order_side = OrderSide.SELL
+
+    if qty <= 0:
+        return {"error": "That amount rounds to zero shares -- try a larger amount."}
+
+    try:
+        submit_order(user_id, client, ticker, qty, order_side, reason=f"Manual {side}")
+    except Exception as e:
+        return {"error": f"Order failed: {e}"}
+
+    return {"status": "ok", "ticker": ticker, "side": side, "qty": round(qty, 4), "price": price}
+
+
 def get_account_summary(api_key, secret_key):
     client = get_trading_client(api_key, secret_key)
     if client is None:

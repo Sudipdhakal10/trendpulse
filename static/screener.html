@@ -50,6 +50,43 @@
     font-size: 14px;
   }
   button:hover { background: #2f57c9; }
+  button.danger { background: #a83f3f; }
+  button.danger:hover { background: #8f3535; }
+  button.buy-btn { background: #1f8f52; }
+  button.buy-btn:hover { background: #1a7645; }
+  button.sell-btn { background: #a83f3f; }
+  button.sell-btn:hover { background: #8f3535; }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  /* Tabs */
+  .tab-nav { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab-btn {
+    background: #171a21;
+    border: 1px solid #2a2e38;
+    color: #999;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+  .tab-btn:hover { background: #1c1f27; color: #e6e6e6; }
+  .tab-btn.active { background: #22345c; border-color: #3b6ef6; color: #e6e6e6; }
+
+  /* Trade panel */
+  .trade-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .trade-row input[type=number] {
+    background: #0f1115;
+    border: 1px solid #333;
+    color: #eee;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    width: 130px;
+  }
+  .trade-status-ok { font-size: 13px; color: #7fdc9c; }
+  .trade-status-error { font-size: 13px; color: #f87171; }
+  .paper-badge { font-size: 11px; font-weight: 600; color: #6fdc9c; background: #1f3a2c; border: 1px solid #2f5c42; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+  .live-badge-warn { font-size: 11px; font-weight: 600; color: #ff8a8a; background: #3a1f1f; border: 1px solid #5c2f2f; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
   button.secondary { background: #2a2e38; }
   button.secondary:hover { background: #3a3f4c; }
   button:disabled { opacity: 0.5; cursor: default; }
@@ -208,16 +245,35 @@
 </div>
 <div class="subtitle">Search any stock to see its chart, fundamentals, earnings, financials, and news.</div>
 
-<div class="panel">
-  <h2>Find a stock</h2>
-  <div class="search-wrap">
-    <input type="text" id="searchInput" placeholder="Search by ticker or company name..." autocomplete="off" style="width: 100%;">
-    <div class="search-dropdown" id="searchDropdown"></div>
-  </div>
-  <span id="status"></span>
+<div class="tab-nav">
+  <button class="tab-btn active" id="tabBtnSearch" onclick="switchTab('search')">Search</button>
+  <button class="tab-btn" id="tabBtnHoldings" onclick="switchTab('holdings')">Holdings</button>
 </div>
 
-<div id="resultArea"></div>
+<div id="searchTab">
+  <div class="panel">
+    <h2>Find a stock</h2>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="Search by ticker or company name..." autocomplete="off" style="width: 100%;">
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+    <span id="status"></span>
+  </div>
+
+  <div id="resultArea"></div>
+</div>
+
+<div id="holdingsTab" style="display:none;">
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Your Holdings</h2>
+      <button class="secondary" id="holdingsRefreshBtn" onclick="loadHoldings()" style="font-size:12.5px; padding:5px 12px;">Refresh</button>
+    </div>
+    <div class="subtitle" style="margin-bottom:12px;">Positions currently held in your Alpaca account — sell any of them directly from here.</div>
+    <div id="holdingsSummary"></div>
+    <div id="holdingsTable"><div class="empty">Loading...</div></div>
+  </div>
+</div>
 
 <script>
 let currentTicker = null;
@@ -229,8 +285,156 @@ let chartCoords = [];
 let chartPointsRef = [];
 let liveInterval = null;
 const LIVE_UPDATE_INTERVAL_MS = 60000;
+let PAPER_TRADING = true;
 
 const RANGES = ['1D', '1W', '1M', '3M', '6M', '1Y', '5Y'];
+
+loadTradeConfig();
+
+// ---------- Tabs ----------
+
+function switchTab(tab) {
+  document.getElementById('searchTab').style.display = tab === 'search' ? 'block' : 'none';
+  document.getElementById('holdingsTab').style.display = tab === 'holdings' ? 'block' : 'none';
+  document.getElementById('tabBtnSearch').classList.toggle('active', tab === 'search');
+  document.getElementById('tabBtnHoldings').classList.toggle('active', tab === 'holdings');
+  if (tab === 'holdings') loadHoldings();
+}
+
+async function loadTradeConfig() {
+  try {
+    const res = await fetch('/api/autotrade/config');
+    const cfg = await res.json();
+    PAPER_TRADING = cfg.paper_trading;
+  } catch (e) {
+    // leave PAPER_TRADING at its safe default (true) if this fails
+  }
+}
+
+// ---------- Holdings ----------
+
+async function loadHoldings() {
+  const summaryEl = document.getElementById('holdingsSummary');
+  const tableEl = document.getElementById('holdingsTable');
+  tableEl.innerHTML = '<div class="empty">Loading...</div>';
+
+  let data;
+  try {
+    const res = await fetch('/api/autotrade/status');
+    data = await res.json();
+  } catch (e) {
+    summaryEl.innerHTML = '';
+    tableEl.innerHTML = '<div class="empty">Could not load holdings — try refreshing shortly.</div>';
+    return;
+  }
+
+  if (data.error) {
+    summaryEl.innerHTML = '';
+    const isKeysError = data.error.toLowerCase().includes('keys');
+    tableEl.innerHTML = '<div class="empty">' + data.error +
+      (isKeysError ? ' <a href="/autotrade" style="color:#6fa1ff;">Add them on the AutoTrade page</a>.' : '') + '</div>';
+    return;
+  }
+
+  summaryEl.innerHTML = '<div class="stats-grid" style="margin-bottom:16px;">' +
+    statBox('Portfolio Value', '$' + fmtNum(data.portfolio_value)) +
+    statBox('Cash Available', '$' + fmtNum(data.cash)) +
+    '</div>';
+
+  if (data.positions.length === 0) {
+    tableEl.innerHTML = '<div class="empty">No open positions.</div>';
+    return;
+  }
+
+  let html = '<div class="table-scroll"><table><tr><th>Ticker</th><th>Qty</th><th>Current Price</th><th>Market Value</th><th>Unrealized P/L</th><th></th></tr>';
+  data.positions.forEach(p => {
+    html += '<tr>' +
+      '<td>' + p.ticker + '</td>' +
+      '<td>' + p.qty + '</td>' +
+      '<td>$' + fmtNum(p.current_price) + '</td>' +
+      '<td>$' + fmtNum(p.market_value) + '</td>' +
+      '<td class="' + changeClass(p.unrealized_pl) + '">' + (p.unrealized_pl >= 0 ? '+' : '') + '$' + fmtNum(p.unrealized_pl) + '</td>' +
+      '<td><button class="danger" onclick="sellAll(\'' + p.ticker + '\', ' + p.qty + ', this)">Sell All</button></td>' +
+      '</tr>';
+  });
+  html += '</table></div>';
+  tableEl.innerHTML = html;
+}
+
+async function sellAll(ticker, qty, button) {
+  const confirmMsg = 'Sell your entire position in ' + ticker + ' (' + qty + ' shares)' +
+    (PAPER_TRADING === false ? ' — THIS IS REAL MONEY' : ' (paper trading)') + '?';
+  if (!confirm(confirmMsg)) return;
+
+  button.disabled = true;
+  try {
+    const res = await fetch('/api/trade/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, side: 'sell', mode: 'shares', value: qty })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      button.disabled = false;
+      return;
+    }
+    alert('Sold ' + data.qty + ' shares of ' + data.ticker + ' at ~$' + fmtNum(data.price) + '.');
+    loadHoldings();
+  } catch (e) {
+    alert('Sell failed — try again in a moment.');
+    button.disabled = false;
+  }
+}
+
+// ---------- Manual trade (Search tab) ----------
+
+function updateTradePlaceholder() {
+  const mode = document.getElementById('tradeMode').value;
+  document.getElementById('tradeValue').placeholder = mode === 'shares' ? '# of shares' : '$ amount';
+}
+
+async function placeTrade(ticker, side) {
+  const modeEl = document.getElementById('tradeMode');
+  const valueEl = document.getElementById('tradeValue');
+  const statusEl = document.getElementById('tradeStatus');
+  const mode = modeEl.value;
+  const value = parseFloat(valueEl.value);
+
+  if (!value || value <= 0) {
+    statusEl.textContent = 'Enter a positive amount.';
+    statusEl.className = 'trade-status-error';
+    return;
+  }
+
+  const unitLabel = mode === 'shares' ? (value + ' share(s)') : ('$' + value + ' worth');
+  const confirmMsg = (side === 'buy' ? 'Buy ' : 'Sell ') + unitLabel + ' of ' + ticker +
+    (PAPER_TRADING === false ? ' — THIS IS REAL MONEY' : ' (paper trading)') + '?';
+  if (!confirm(confirmMsg)) return;
+
+  statusEl.textContent = 'Placing order...';
+  statusEl.className = '';
+
+  try {
+    const res = await fetch('/api/trade/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, side, mode, value })
+    });
+    const data = await res.json();
+    if (data.error) {
+      statusEl.textContent = data.error;
+      statusEl.className = 'trade-status-error';
+      return;
+    }
+    statusEl.textContent = (data.side === 'buy' ? 'Bought ' : 'Sold ') + data.qty + ' shares of ' + data.ticker + ' at ~$' + fmtNum(data.price) + '.';
+    statusEl.className = 'trade-status-ok';
+    valueEl.value = '';
+  } catch (e) {
+    statusEl.textContent = 'Trade failed — try again in a moment.';
+    statusEl.className = 'trade-status-error';
+  }
+}
 
 function setStatus(msg, isError) {
   const el = document.getElementById('status');
@@ -376,6 +580,19 @@ function renderStock(data) {
     '<button data-range="' + r + '" class="' + (r === currentRange ? 'active' : '') + '" onclick="setRange(\'' + r + '\')">' + r + '</button>'
   ).join('') + '</div>';
   html += '<div id="chartContainer"><div class="empty">Loading chart...</div></div>';
+  html += '</div>';
+
+  html += '<div class="panel">';
+  html += '<h2>Trade' + (PAPER_TRADING === false
+    ? ' <span class="live-badge-warn">LIVE — real money</span>'
+    : ' <span class="paper-badge">Paper Trading</span>') + '</h2>';
+  html += '<div class="trade-row">';
+  html += '<select id="tradeMode" onchange="updateTradePlaceholder()"><option value="dollars">$ Amount</option><option value="shares"># Shares</option></select>';
+  html += '<input type="number" id="tradeValue" min="0.0001" step="any" placeholder="$ amount">';
+  html += '<button class="buy-btn" onclick="placeTrade(\'' + s.ticker + '\', \'buy\')">Buy</button>';
+  html += '<button class="sell-btn" onclick="placeTrade(\'' + s.ticker + '\', \'sell\')">Sell</button>';
+  html += '<span id="tradeStatus"></span>';
+  html += '</div>';
   html += '</div>';
 
   html += '<div class="panel">';
