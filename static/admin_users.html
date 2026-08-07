@@ -24,10 +24,23 @@
     margin-bottom: 20px;
   }
   .panel h2 { font-size: 15px; margin-top: 0; color: #ccc; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; }
+  button {
+    background: #3b6ef6;
+    color: white;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button:hover { background: #2f57c9; }
+  button.secondary { background: #2a2e38; }
+  button.secondary:hover { background: #3a3f4c; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #262a33; }
   th { color: #999; font-weight: 500; }
-  #usersTable { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #usersTable, #invitesTable { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .empty { color: #777; font-size: 13px; padding: 10px 0; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
   .badge-on { background: #1f3a2c; color: #6fdc9c; }
@@ -96,11 +109,79 @@
 <div class="subtitle">Everyone registered on this site, newest first. Admin-only.</div>
 
 <div class="panel">
+  <div class="panel-header">
+    <h2>Invites</h2>
+    <button onclick="generateInvite()">Generate Invite</button>
+  </div>
+  <div class="subtitle" style="margin-bottom:12px;">Registration is invite-only — generate a single-use code and share the link with whoever you want to let in.</div>
+  <div id="newInviteBox" style="display:none; margin-bottom:14px;"></div>
+  <div id="invitesTable"></div>
+</div>
+
+<div class="panel">
   <h2>Registered Users</h2>
   <div id="usersTable"></div>
 </div>
 
 <script>
+async function generateInvite() {
+  const res = await fetch('/api/admin/invites', { method: 'POST' });
+  if (res.status === 403) return;
+  const data = await res.json();
+  const link = window.location.origin + '/register?invite=' + data.code;
+
+  const box = document.getElementById('newInviteBox');
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div style="background:#12151c; border:1px solid #2a2e38; border-radius:8px; padding:12px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <code style="font-size:12.5px; color:#6fdc9c; word-break:break-all;">${link}</code>
+      <button class="secondary" onclick="copyInviteLink(this, '${link}')" style="font-size:12px; padding:5px 10px;">Copy Link</button>
+    </div>
+  `;
+  loadInvites();
+}
+
+function copyInviteLink(btn, link) {
+  navigator.clipboard.writeText(link).then(() => {
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  });
+}
+
+async function loadInvites() {
+  const container = document.getElementById('invitesTable');
+  const res = await fetch('/api/admin/invites');
+
+  if (res.status === 403) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const invites = await res.json();
+
+  if (invites.length === 0) {
+    container.innerHTML = '<div class="empty">No invites generated yet.</div>';
+    return;
+  }
+
+  let html = '<table><tr><th>Code</th><th>Created By</th><th>Created</th><th>Status</th></tr>';
+  invites.forEach(inv => {
+    const created = (inv.created_at || '').split(' ')[0] || '—';
+    const status = inv.used_by
+      ? `<span class="badge badge-off">Used by ${inv.used_by_username || ('user #' + inv.used_by)}</span>`
+      : '<span class="badge badge-on">Unused</span>';
+    html += `<tr>
+      <td><code>${inv.code}</code></td>
+      <td>${inv.created_by_username || '—'}</td>
+      <td>${created}</td>
+      <td>${status}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  container.innerHTML = html;
+}
+
 async function loadUsers() {
   const container = document.getElementById('usersTable');
   const res = await fetch('/api/admin/users');
@@ -144,6 +225,7 @@ async function loadUsers() {
   container.innerHTML = html;
 }
 
+loadInvites();
 loadUsers();
 </script>
 

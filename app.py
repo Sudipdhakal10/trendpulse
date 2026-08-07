@@ -174,6 +174,7 @@ class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
+    invite_code: str = ""
     first_name: str = ""
     last_name: str = ""
     phone: str = ""
@@ -709,6 +710,17 @@ def api_admin_list_users(_=Depends(require_admin)):
     ]
 
 
+@app.get("/api/admin/invites")
+def api_admin_list_invites(_=Depends(require_admin)):
+    return db.get_all_invites()
+
+
+@app.post("/api/admin/invites")
+def api_admin_create_invite(user_id: int = Depends(require_admin)):
+    code = db.create_invite(user_id)
+    return {"code": code}
+
+
 # ============ Serve the frontend ============
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -752,6 +764,22 @@ def api_register(payload: RegisterRequest, request: Request):
     username = payload.username.strip()
     email = payload.email.strip()
     password = payload.password
+    invite_code = payload.invite_code.strip()
+
+    # Bootstrap exception: a brand-new install has no users yet, so no one
+    # could ever generate the first invite. Only the very first account
+    # ever created skips this check -- every registration after that
+    # requires a real one, since db.get_all_users() is no longer empty.
+    is_bootstrap = not db.get_all_users()
+
+    if not is_bootstrap:
+        if not invite_code:
+            raise HTTPException(status_code=400, detail="An invite code is required to register.")
+        invite = db.get_invite(invite_code)
+        if not invite:
+            raise HTTPException(status_code=400, detail="That invite code isn't valid.")
+        if invite["used_by"] is not None:
+            raise HTTPException(status_code=400, detail="That invite code has already been used.")
 
     if not USERNAME_RE.match(username):
         raise HTTPException(status_code=400, detail="Username must be 3-32 characters (letters, numbers, _ . -).")
@@ -772,6 +800,12 @@ def api_register(payload: RegisterRequest, request: Request):
         state=payload.state.strip(),
         zip_code=payload.zip_code.strip(),
     )
+    if is_bootstrap:
+        # The very first account on a fresh install becomes admin
+        # immediately, so they can generate invites for everyone after them.
+        db.set_admin(user_id)
+    else:
+        db.mark_invite_used(invite_code, user_id)
     request.session["user_id"] = user_id
     return {"status": "ok"}
 

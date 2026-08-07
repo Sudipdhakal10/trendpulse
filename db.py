@@ -103,6 +103,15 @@ def init_db():
         )
     """)
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS invites (
+            code TEXT PRIMARY KEY,
+            created_by INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            used_by INTEGER,
+            used_at TEXT
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS autotrade_watchlist (
             user_id INTEGER NOT NULL,
             ticker TEXT NOT NULL,
@@ -287,6 +296,13 @@ def create_user(username, email, password, first_name="", last_name="", phone=""
     return user_id
 
 
+def set_admin(user_id, is_admin=True):
+    conn = get_connection()
+    conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (1 if is_admin else 0, user_id))
+    conn.commit()
+    conn.close()
+
+
 def get_user_by_username(username):
     conn = get_connection()
     row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
@@ -347,6 +363,53 @@ def set_password(user_id, new_password):
     )
     conn.commit()
     conn.close()
+
+
+# ============ Invites (registration is invite-only) ============
+
+def create_invite(created_by_user_id):
+    """Generates a new single-use invite code and returns it."""
+    code = secrets.token_urlsafe(9)  # e.g. "kQ3f_2xVn8pR" -- short enough to share, long enough not to guess
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO invites (code, created_by) VALUES (?, ?)",
+        (code, created_by_user_id),
+    )
+    conn.commit()
+    conn.close()
+    return code
+
+
+def get_invite(code):
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM invites WHERE code = ?", (code,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def mark_invite_used(code, user_id):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE invites SET used_by = ?, used_at = datetime('now', 'localtime') WHERE code = ?",
+        (user_id, code),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_all_invites():
+    """Newest first, with the inviting admin's and (if used) the new
+    user's username joined in for display."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT invites.*, creator.username AS created_by_username, user.username AS used_by_username
+        FROM invites
+        LEFT JOIN users AS creator ON creator.id = invites.created_by
+        LEFT JOIN users AS user ON user.id = invites.used_by
+        ORDER BY invites.created_at DESC
+    """).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 
 # ============ Watchlist ============

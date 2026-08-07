@@ -97,6 +97,10 @@
   <h1>TrendPulse</h1>
   <p style="text-align:center; color:#999; font-size:13px; margin-top:-14px; margin-bottom:22px;">Create your own desk</p>
   <form id="registerForm">
+    <label for="inviteCode">Invite Code</label>
+    <input type="text" id="inviteCode" autocomplete="off">
+    <div class="hint">TrendPulse is invite-only — ask whoever invited you for a code (leave blank only if you're setting up the very first account)</div>
+
     <label for="username">Username</label>
     <input type="text" id="username" autocomplete="username" required>
     <div class="hint">3-32 characters: letters, numbers, "_", ".", "-"</div>
@@ -149,8 +153,16 @@
 </div>
 
 <script>
+// Prefill the invite code if the link included ?invite=CODE, so a recipient
+// doesn't have to manually copy/paste it.
+const prefilledInvite = new URLSearchParams(window.location.search).get('invite');
+if (prefilledInvite) {
+  document.getElementById('inviteCode').value = prefilledInvite;
+}
+
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const inviteCode = document.getElementById('inviteCode').value.trim();
   const username = document.getElementById('username').value;
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
@@ -161,6 +173,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      invite_code: inviteCode,
       username,
       email,
       password,

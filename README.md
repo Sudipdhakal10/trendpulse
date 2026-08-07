@@ -1,9 +1,9 @@
 # TrendPulse
 
-A multi-user web app: anyone can register their own account, build a
-watchlist of tickers with rule-based strategies, get emailed when one
-triggers, and run an AutoTrade bot against their own Alpaca account using
-their own entry/exit strategy per ticker.
+A multi-user, invite-only web app: each user gets their own account, a
+watchlist of tickers with rule-based strategies, an email when one
+triggers, and an AutoTrade bot that runs against their own Alpaca account
+using their own entry/exit strategy per ticker.
 
 ## Local setup
 
@@ -172,12 +172,12 @@ scratch on a new environment:
 
 ### Before this is genuinely public
 
-- **Registration is open to anyone with the URL** — anyone can create an
-  account today; there's no invite/approval gate. `/api/login` and
-  `/api/register` are rate-limited per IP (10 login attempts / 5 min,
-  5 registrations / hour) against brute-force and spam signups, but
-  decide if fully open registration is what you want before sharing
-  the link widely.
+- **Registration is invite-only.** An admin generates a single-use
+  invite code (and shareable `/register?invite=CODE` link) from the
+  `/admin/users` page's Invites panel — `/api/register` rejects any
+  signup without a valid, unused code. `/api/login` and `/api/register`
+  are also rate-limited per IP (10 login attempts / 5 min, 5
+  registrations / hour) against brute-force and spam signups.
 - **`PAPER_TRADING` stays `true`** until you deliberately flip it — do
   not change this until you're fully ready, and even then, start small.
 - **Backups**: Railway's own volume backups need a paid Pro plan. In
