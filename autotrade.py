@@ -361,6 +361,19 @@ def get_portfolio_history(api_key, secret_key, range_key):
         for ts, eq in zip(history.timestamp, history.equity)
         if eq is not None
     ]
+
+    # Alpaca pads the response to cover the full requested period even if
+    # the account didn't exist yet for part of it (e.g. a 1-month range
+    # requested for an account opened 10 days ago), returning equity=0
+    # placeholders for those pre-account days rather than omitting them.
+    # Left in place, that zero becomes the chart's "start" value -- a flat
+    # line at the bottom followed by a misleading vertical jump, and a
+    # period return of $current_value / 0%, since there's no real starting
+    # balance to compare against. Trim that leading run so the series
+    # starts at the account's actual first real balance.
+    first_real = next((i for i, p in enumerate(points) if p["equity"] != 0), None)
+    points = points[first_real:] if first_real is not None else []
+
     return {"points": points, "base_value": history.base_value}
 
 
