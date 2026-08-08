@@ -518,7 +518,12 @@ function renderPerfRangeStats(data) {
   }
 
   const start = points[0].equity;
-  const end = points[points.length - 1].equity;
+  // Prefer the live current_equity (same source as the AutoTrade page's
+  // Portfolio Value) over the history series' last point, which is only
+  // as fresh as its timeframe's most recently completed interval.
+  const end = (data.current_equity !== null && data.current_equity !== undefined)
+    ? data.current_equity
+    : points[points.length - 1].equity;
   const changeDollar = end - start;
   const changePct = start ? (changeDollar / start * 100) : 0;
 

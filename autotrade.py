@@ -27,6 +27,7 @@ Defaults to true. Do not flip to false until you're fully ready, and even
 then, start small.
 """
 
+import time
 from collections import deque
 
 import yfinance as yf
@@ -347,6 +348,7 @@ def get_portfolio_history(api_key, secret_key, range_key):
     params = PERFORMANCE_RANGES.get(range_key, PERFORMANCE_RANGES["1M"])
 
     try:
+        account = client.get_account()
         history = client.get_portfolio_history(GetPortfolioHistoryRequest(
             period=params["alpaca_period"],
             timeframe=params["alpaca_timeframe"],
@@ -374,7 +376,22 @@ def get_portfolio_history(api_key, secret_key, range_key):
     first_real = next((i for i, p in enumerate(points) if p["equity"] != 0), None)
     points = points[first_real:] if first_real is not None else []
 
-    return {"points": points, "base_value": history.base_value}
+    # The history series' last point is a snapshot at the end of its
+    # timeframe's most recent completed interval (e.g. yesterday's close
+    # for a daily timeframe) -- not "right now." Anchor the displayed
+    # value and the period-return calculation on the account's actual
+    # live equity instead, the same call the AutoTrade page's Portfolio
+    # Value already uses, so the two pages never disagree with each
+    # other. Extend the chart itself to that live value too, either by
+    # replacing an already-current last point or appending a fresh one.
+    current_equity = float(account.portfolio_value)
+    now_ts = int(time.time())
+    if points and points[-1]["t"] >= now_ts - 60:
+        points[-1]["equity"] = current_equity
+    else:
+        points.append({"t": now_ts, "equity": current_equity})
+
+    return {"points": points, "base_value": history.base_value, "current_equity": current_equity}
 
 
 def get_benchmark_return(range_key):
