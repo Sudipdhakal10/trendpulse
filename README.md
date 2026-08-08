@@ -56,16 +56,27 @@ using their own entry/exit strategy per ticker.
   recent earnings, quarterly revenue/net income, and company news, with
   a one-click **+ Add to Watchlist**. Data comes from yfinance, cached
   per ticker for a few minutes so browsing doesn't hammer Yahoo Finance.
-  Also has **Search**/**Holdings**/**Performance** tabs: Search lets you
-  place a manual buy/sell market order (by dollar amount or share
-  count) on whatever stock you're viewing, Holdings shows your current
-  Alpaca positions with a one-click Sell All per row, and Performance
-  charts your account's equity over time (straight from Alpaca's own
-  tracking, not reconstructed) alongside a same-period S&amp;P 500
-  comparison and all-time realized P&amp;L/win-rate stats (FIFO-matched
-  against your actual filled Alpaca orders). All three use the same
-  Alpaca keys already set on the AutoTrade page, independent of any
-  AutoTrade strategy.
+  Also has **Search**/**Holdings**/**Performance**/**Backtest**/**Scan**
+  tabs: Search lets you place a manual buy/sell market order (by dollar
+  amount or share count) on whatever stock you're viewing, Holdings
+  shows your current Alpaca positions with a one-click Sell All per
+  row, and Performance charts your account's equity over time (straight
+  from Alpaca's own tracking, not reconstructed) alongside a same-period
+  S&amp;P 500 comparison and all-time realized P&amp;L/win-rate stats
+  (FIFO-matched against your actual filled Alpaca orders). Those three
+  use the same Alpaca keys already set on the AutoTrade page, independent
+  of any AutoTrade strategy. Backtest simulates any entry+exit strategy
+  pairing against a chosen ticker's own historical prices (1–10 years,
+  or max) before ever running it live via AutoTrade — shows an equity
+  curve, total return vs. buy-and-hold, max drawdown, win rate, and a
+  full trade log. Scan is a real multi-stock screener: filters the
+  S&amp;P 500 by technical criteria only (RSI, price vs. 50/200-day
+  moving average, % change, relative volume, 52-week range) — no
+  fundamentals (PE, market cap), since those need slow per-ticker calls
+  with no bulk endpoint. Refreshed automatically in the background every
+  30 minutes using the same chunked-download safety pattern as the
+  Watchlist page's momentum scan, so browsing/filtering never triggers a
+  live scan or waits on one.
 - **Sentiment** (`/sentiment`) — a homegrown 0-100 Fear &amp; Greed-style
   score (VIX level, S&amp;P 500 momentum vs. its 125-day average, and the
   SPY options put/call ratio, averaged) plus call/put options volume for

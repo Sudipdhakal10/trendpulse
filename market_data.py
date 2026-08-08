@@ -144,6 +144,115 @@ def _download_chunk(chunk):
     return yf.download(chunk, period="2mo", group_by="ticker", threads=MOMENTUM_CHUNK_THREADS, progress=False, timeout=10)
 
 
+SCREENER_CHUNK_SIZE = 20  # smaller than momentum's 50 -- each ticker here needs
+                           # ~1y of history (for MA200/52-week range) instead of
+                           # momentum's 2mo, so a chunk this size holds roughly
+                           # the same total amount of OHLCV data in memory
+SCREENER_CHUNK_THREADS = 8
+SCREENER_CHUNK_TIMEOUT_SECONDS = 60  # a "1y" chunk takes longer than "2mo"
+SCREENER_MIN_ROWS = 200  # MA200 needs 200 rows to be valid
+
+_SCREENER_CACHE = {"data": None, "timestamp": 0}
+
+
+def _download_screener_chunk(chunk):
+    return yf.download(chunk, period="1y", group_by="ticker", threads=SCREENER_CHUNK_THREADS, progress=False, timeout=15)
+
+
+def refresh_screener_cache():
+    """Computes technical fields (RSI, MA50/MA200 position, % change, volume,
+    relative volume, 52-week range) for every S&P 500 ticker with enough
+    history, and updates the cache. Mirrors refresh_momentum_cache's chunked-
+    download-with-hard-timeout pattern for the same reason it exists there:
+    downloading the whole universe in one yf.download() call is what caused
+    a real OOM crash on this host before -- see that function's docstring.
+
+    Filtering by the user's chosen criteria (RSI range, price vs. MA, etc.)
+    happens client-side against this full cached list rather than being
+    baked in here, so adjusting a filter doesn't need a new server round
+    trip -- the whole point of a screener is fast, interactive filtering."""
+    universe = get_momentum_universe()
+    rows = []
+
+    for start in range(0, len(universe), SCREENER_CHUNK_SIZE):
+        chunk = universe[start:start + SCREENER_CHUNK_SIZE]
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            data = executor.submit(_download_screener_chunk, chunk).result(timeout=SCREENER_CHUNK_TIMEOUT_SECONDS)
+        except concurrent.futures.TimeoutError:
+            print(f"Screener scan chunk timed out after {SCREENER_CHUNK_TIMEOUT_SECONDS}s, skipping {len(chunk)} tickers")
+            executor.shutdown(wait=False)
+            continue
+        except Exception as e:
+            print(f"Screener scan chunk download failed: {e}")
+            executor.shutdown(wait=False)
+            continue
+        executor.shutdown(wait=False)
+
+        if data is None or data.empty:
+            continue
+
+        is_multi = isinstance(data.columns, pd.MultiIndex)
+
+        for ticker in chunk:
+            try:
+                df = data[ticker] if is_multi else data
+                df = df.dropna(subset=["Close", "Volume"])
+                if len(df) < SCREENER_MIN_ROWS:
+                    continue
+
+                close = df["Close"]
+                volume = df["Volume"]
+                price = float(close.iloc[-1])
+
+                avg_volume_20 = float(volume.iloc[-21:-1].mean())
+                relative_volume = float(volume.iloc[-1] / avg_volume_20) if avg_volume_20 > 0 else 0.0
+
+                delta = close.diff()
+                gain = delta.clip(lower=0).rolling(14).mean()
+                loss = (-delta.clip(upper=0)).rolling(14).mean()
+                rs = gain / loss
+                rsi = (100 - (100 / (1 + rs))).iloc[-1]
+
+                ma50 = float(close.rolling(50).mean().iloc[-1])
+                ma200 = float(close.rolling(200).mean().iloc[-1])
+                week52_high = float(close.max())
+                week52_low = float(close.min())
+
+                rows.append({
+                    "ticker": ticker,
+                    "price": round(price, 2),
+                    "pct_change": round(float((close.iloc[-1] - close.iloc[-2]) / close.iloc[-2] * 100), 2),
+                    "volume": int(volume.iloc[-1]),
+                    "relative_volume": round(relative_volume, 2),
+                    "rsi": round(float(rsi), 1) if pd.notna(rsi) else None,
+                    "pct_vs_ma50": round((price - ma50) / ma50 * 100, 2),
+                    "pct_vs_ma200": round((price - ma200) / ma200 * 100, 2),
+                    "week52_high": round(week52_high, 2),
+                    "week52_low": round(week52_low, 2),
+                    "pct_from_52w_high": round((price - week52_high) / week52_high * 100, 2),
+                    "pct_from_52w_low": round((price - week52_low) / week52_low * 100, 2),
+                })
+            except Exception:
+                continue
+
+        del data
+
+    _SCREENER_CACHE["data"] = rows
+    _SCREENER_CACHE["timestamp"] = time.time()
+    return rows
+
+
+def get_screener_data():
+    """Returns the cached technical scan, computing it synchronously (same
+    on-demand fallback get_momentum_movers uses) if the scheduler's periodic
+    refresh hasn't populated it yet -- e.g. right after a fresh deploy."""
+    if _SCREENER_CACHE["data"] is None:
+        refresh_screener_cache()
+    return {"rows": _SCREENER_CACHE["data"] or [], "as_of": _SCREENER_CACHE["timestamp"]}
+
+
 def refresh_momentum_cache(limit=10, min_relative_volume=2.0, min_pct_change=5.0):
     """Does the actual ~500-ticker scan and updates the cache. Split out
     from get_momentum_movers so app.py's scheduler can call this directly

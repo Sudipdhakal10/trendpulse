@@ -61,7 +61,7 @@
   button:disabled { opacity: 0.5; cursor: default; }
 
   /* Tabs */
-  .tab-nav { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .tab-btn {
     background: #171a21;
     border: 1px solid #2a2e38;
@@ -87,6 +87,9 @@
   }
   .trade-row input[type=number] { width: 130px; }
   .trade-row select { width: 130px; cursor: pointer; }
+  .trade-row label { font-size: 12.5px; color: #999; display: flex; align-items: center; gap: 4px; }
+  .trade-row label input[type=number] { width: 62px; }
+  #btEntry, #btExit { width: 190px; }
   .trade-status-ok { font-size: 13px; color: #7fdc9c; }
   .trade-status-error { font-size: 13px; color: #f87171; }
   .paper-badge { font-size: 11px; font-weight: 600; color: #6fdc9c; background: #1f3a2c; border: 1px solid #2f5c42; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
@@ -255,6 +258,8 @@
   <button class="tab-btn active" id="tabBtnSearch" onclick="switchTab('search')">Search</button>
   <button class="tab-btn" id="tabBtnHoldings" onclick="switchTab('holdings')">Holdings</button>
   <button class="tab-btn" id="tabBtnPerformance" onclick="switchTab('performance')">Performance</button>
+  <button class="tab-btn" id="tabBtnBacktest" onclick="switchTab('backtest')">Backtest</button>
+  <button class="tab-btn" id="tabBtnScan" onclick="switchTab('scan')">Scan</button>
 </div>
 
 <div id="searchTab">
@@ -300,6 +305,54 @@
   </div>
 </div>
 
+<div id="backtestTab" style="display:none;">
+  <div class="panel">
+    <h2>Backtest a Strategy</h2>
+    <div class="subtitle" style="margin-bottom:14px;">Simulate an entry + exit strategy pairing against a ticker's own historical prices before ever running it live via AutoTrade.</div>
+    <div class="trade-row" style="margin-bottom:6px;">
+      <input type="text" id="btTicker" placeholder="Ticker (e.g. AAPL)" style="width:130px; text-transform:uppercase;">
+      <select id="btEntry"></select>
+      <select id="btExit"></select>
+      <select id="btPeriod">
+        <option value="1y">1 Year</option>
+        <option value="2y" selected>2 Years</option>
+        <option value="5y">5 Years</option>
+        <option value="10y">10 Years</option>
+        <option value="max">Max</option>
+      </select>
+      <input type="number" id="btCapital" value="10000" min="1" style="width:120px;" title="Starting capital">
+      <button onclick="runBacktest()" id="btRunBtn">Run Backtest</button>
+    </div>
+    <span id="btStatus" class="trade-status-error"></span>
+  </div>
+  <div id="btResults"></div>
+</div>
+
+<div id="scanTab" style="display:none;">
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Technical Screener</h2>
+      <button class="secondary" id="scanRefreshBtn" onclick="loadScan(true)" style="font-size:12.5px; padding:5px 12px;">Refresh</button>
+    </div>
+    <div class="subtitle" id="scanAsOf" style="margin-bottom:14px;">Scans the S&amp;P 500 by technical criteria — updated automatically in the background.</div>
+    <div class="trade-row" style="margin-bottom:4px;">
+      <label>RSI <input type="number" id="scanRsiMin" placeholder="min"> – <input type="number" id="scanRsiMax" placeholder="max"></label>
+      <label>% Chg <input type="number" id="scanPctMin" placeholder="min"> – <input type="number" id="scanPctMax" placeholder="max"></label>
+      <label>Rel. Vol ≥ <input type="number" id="scanRelVolMin" placeholder="1.5"></label>
+      <label>vs MA50
+        <select id="scanMa50"><option value="">Any</option><option value="above">Above</option><option value="below">Below</option></select>
+      </label>
+      <label>vs MA200
+        <select id="scanMa200"><option value="">Any</option><option value="above">Above</option><option value="below">Below</option></select>
+      </label>
+      <button onclick="applyScanFilters()">Apply</button>
+      <button class="secondary" onclick="clearScanFilters()">Clear</button>
+    </div>
+    <div id="scanCount" class="empty" style="padding:4px 0 10px;"></div>
+    <div id="scanTable"><div class="empty">Loading...</div></div>
+  </div>
+</div>
+
 <script>
 let currentTicker = null;
 let currentRange = '1M';
@@ -322,11 +375,17 @@ function switchTab(tab) {
   document.getElementById('searchTab').style.display = tab === 'search' ? 'block' : 'none';
   document.getElementById('holdingsTab').style.display = tab === 'holdings' ? 'block' : 'none';
   document.getElementById('performanceTab').style.display = tab === 'performance' ? 'block' : 'none';
+  document.getElementById('backtestTab').style.display = tab === 'backtest' ? 'block' : 'none';
+  document.getElementById('scanTab').style.display = tab === 'scan' ? 'block' : 'none';
   document.getElementById('tabBtnSearch').classList.toggle('active', tab === 'search');
   document.getElementById('tabBtnHoldings').classList.toggle('active', tab === 'holdings');
   document.getElementById('tabBtnPerformance').classList.toggle('active', tab === 'performance');
+  document.getElementById('tabBtnBacktest').classList.toggle('active', tab === 'backtest');
+  document.getElementById('tabBtnScan').classList.toggle('active', tab === 'scan');
   if (tab === 'holdings') loadHoldings();
   if (tab === 'performance') loadPerformance();
+  if (tab === 'backtest') ensureBacktestStrategies();
+  if (tab === 'scan') loadScan(false);
 }
 
 async function loadTradeConfig() {
@@ -565,6 +624,244 @@ async function loadPerformanceAllTimeStats() {
   html += statBox('Win Rate', data.win_rate !== null ? data.win_rate + '%' : '—');
   html += statBox('Closed Trades', data.closed_trades);
   grid.innerHTML = html;
+}
+
+// ---------- Backtest ----------
+
+let backtestStrategiesLoaded = false;
+
+async function ensureBacktestStrategies() {
+  if (backtestStrategiesLoaded) return;
+  try {
+    const res = await fetch('/api/autotrade/strategies');
+    const data = await res.json();
+    document.getElementById('btEntry').innerHTML = data.entry_strategies.map(s =>
+      '<option value="' + s + '">' + s.replace(/_/g, ' ') + '</option>').join('');
+    document.getElementById('btExit').innerHTML = data.exit_strategies.map(s =>
+      '<option value="' + s + '">' + s.replace(/_/g, ' ') + '</option>').join('');
+    backtestStrategiesLoaded = true;
+  } catch (e) {
+    document.getElementById('btStatus').textContent = 'Could not load strategy list — try again in a moment.';
+  }
+}
+
+async function runBacktest() {
+  const ticker = document.getElementById('btTicker').value.trim().toUpperCase();
+  const entry_strategy = document.getElementById('btEntry').value;
+  const exit_strategy = document.getElementById('btExit').value;
+  const period = document.getElementById('btPeriod').value;
+  const starting_capital = parseFloat(document.getElementById('btCapital').value) || 10000;
+  const statusEl = document.getElementById('btStatus');
+  const resultsEl = document.getElementById('btResults');
+  const btn = document.getElementById('btRunBtn');
+
+  statusEl.textContent = '';
+  if (!ticker) {
+    statusEl.textContent = 'Enter a ticker.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  resultsEl.innerHTML = '<div class="panel empty">Simulating...</div>';
+
+  try {
+    const res = await fetch('/api/backtest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, entry_strategy, exit_strategy, period, starting_capital })
+    });
+    const data = await res.json();
+    if (data.error) {
+      resultsEl.innerHTML = '';
+      statusEl.textContent = data.error;
+      return;
+    }
+    renderBacktestResults(data);
+  } catch (e) {
+    resultsEl.innerHTML = '';
+    statusEl.textContent = 'Backtest failed — try again in a moment.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run Backtest';
+  }
+}
+
+function renderBacktestResults(data) {
+  const resultsEl = document.getElementById('btResults');
+
+  let html = '<div class="panel">';
+  html += '<h2>' + data.ticker + ' — ' + data.entry_strategy.replace(/_/g, ' ') + ' / ' + data.exit_strategy.replace(/_/g, ' ') + '</h2>';
+  html += '<div id="btChartContainer"></div>';
+  html += '<div class="stats-grid" style="margin-top:16px;">';
+  html += statBoxColored('Total Return', fmtPct(data.total_return_pct), changeClass(data.total_return_pct));
+  html += statBox('Final Equity', '$' + fmtNum(data.final_equity));
+  html += statBoxColored('Buy &amp; Hold Return', fmtPct(data.buy_hold_return_pct), changeClass(data.buy_hold_return_pct));
+  html += statBoxColored('Max Drawdown', fmtPct(data.max_drawdown_pct), 'change-neg');
+  html += statBox('Closed Trades', data.trade_count);
+  html += statBox('Win Rate', data.win_rate !== null ? data.win_rate + '%' : '—');
+  html += '</div>';
+  if (data.still_holding) {
+    html += '<div class="subtitle" style="margin-top:10px;">Still holding a position at the end of this period — final equity is marked to the last close.</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="panel"><h2>Trade Log</h2>';
+  if (data.trades.length === 0) {
+    html += '<div class="empty">No trades triggered over this period.</div>';
+  } else {
+    html += '<div class="table-scroll"><table><tr><th>Date</th><th>Side</th><th>Price</th><th>Shares</th><th>P&amp;L</th></tr>';
+    data.trades.forEach(t => {
+      html += '<tr>' +
+        '<td>' + t.date + '</td>' +
+        '<td style="text-transform:capitalize;">' + t.side + '</td>' +
+        '<td>$' + fmtNum(t.price) + '</td>' +
+        '<td>' + t.shares + '</td>' +
+        '<td' + (t.pnl !== null ? ' class="' + changeClass(t.pnl) + '"' : '') + '>' +
+          (t.pnl !== null ? (t.pnl >= 0 ? '+' : '-') + '$' + fmtNum(Math.abs(t.pnl)) : '—') + '</td>' +
+        '</tr>';
+    });
+    html += '</table></div>';
+  }
+  html += '</div>';
+
+  resultsEl.innerHTML = html;
+  renderBacktestChart(data.equity_curve);
+}
+
+function renderBacktestChart(curve) {
+  const container = document.getElementById('btChartContainer');
+  if (!curve || curve.length < 2) {
+    container.innerHTML = '<div class="empty">Not enough data to chart.</div>';
+    return;
+  }
+
+  const W = 600, H = 200, PAD_TOP = 14, PAD_BOTTOM = 10, PAD_X = 6;
+  const equities = curve.map(p => p.equity);
+  const min = Math.min(...equities);
+  const max = Math.max(...equities);
+  const range = (max - min) || 1;
+  const baseline = H - PAD_BOTTOM;
+
+  const xAt = i => PAD_X + (i / (curve.length - 1)) * (W - PAD_X * 2);
+  const yAt = v => PAD_TOP + (1 - (v - min) / range) * (H - PAD_TOP - PAD_BOTTOM);
+
+  const coords = curve.map((p, i) => ({ x: xAt(i), y: yAt(p.equity) }));
+  const linePath = smoothPath(coords);
+  const last = coords[coords.length - 1];
+  const first = coords[0];
+  const areaPath = linePath + ' L' + last.x + ',' + baseline + ' L' + first.x + ',' + baseline + ' Z';
+
+  const isUp = equities[equities.length - 1] >= equities[0];
+  const color = isUp ? '#4ade80' : '#f87171';
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%; max-width:100%; height:200px; display:block;">
+      <defs>
+        <linearGradient id="btGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.32" />
+          <stop offset="100%" stop-color="${color}" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#btGrad)" stroke="none" />
+      <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+  `;
+}
+
+// ---------- Scan ----------
+
+let scanData = [];
+let scanLoaded = false;
+
+async function loadScan(forceRefresh) {
+  if (scanLoaded && !forceRefresh) return;
+  const tableEl = document.getElementById('scanTable');
+  tableEl.innerHTML = '<div class="empty">Loading...</div>';
+
+  try {
+    const res = await fetch('/api/screener/scan');
+    const data = await res.json();
+    scanData = data.rows || [];
+    scanLoaded = true;
+    if (data.as_of) {
+      document.getElementById('scanAsOf').textContent =
+        'Scans the S&P 500 by technical criteria — data as of ' + new Date(data.as_of * 1000).toLocaleString() + '.';
+    }
+    applyScanFilters();
+  } catch (e) {
+    tableEl.innerHTML = '<div class="empty">Could not load scan data — try refreshing shortly.</div>';
+  }
+}
+
+function clearScanFilters() {
+  ['scanRsiMin', 'scanRsiMax', 'scanPctMin', 'scanPctMax', 'scanRelVolMin'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('scanMa50').value = '';
+  document.getElementById('scanMa200').value = '';
+  applyScanFilters();
+}
+
+function applyScanFilters() {
+  const rsiMin = parseFloat(document.getElementById('scanRsiMin').value);
+  const rsiMax = parseFloat(document.getElementById('scanRsiMax').value);
+  const pctMin = parseFloat(document.getElementById('scanPctMin').value);
+  const pctMax = parseFloat(document.getElementById('scanPctMax').value);
+  const relVolMin = parseFloat(document.getElementById('scanRelVolMin').value);
+  const ma50 = document.getElementById('scanMa50').value;
+  const ma200 = document.getElementById('scanMa200').value;
+
+  const filtered = scanData.filter(r => {
+    if (!isNaN(rsiMin) && (r.rsi === null || r.rsi < rsiMin)) return false;
+    if (!isNaN(rsiMax) && (r.rsi === null || r.rsi > rsiMax)) return false;
+    if (!isNaN(pctMin) && r.pct_change < pctMin) return false;
+    if (!isNaN(pctMax) && r.pct_change > pctMax) return false;
+    if (!isNaN(relVolMin) && r.relative_volume < relVolMin) return false;
+    if (ma50 === 'above' && r.pct_vs_ma50 < 0) return false;
+    if (ma50 === 'below' && r.pct_vs_ma50 >= 0) return false;
+    if (ma200 === 'above' && r.pct_vs_ma200 < 0) return false;
+    if (ma200 === 'below' && r.pct_vs_ma200 >= 0) return false;
+    return true;
+  });
+
+  renderScanTable(filtered);
+}
+
+function renderScanTable(rows) {
+  const countEl = document.getElementById('scanCount');
+  const tableEl = document.getElementById('scanTable');
+  countEl.textContent = rows.length + ' of ' + scanData.length + ' match' + (rows.length === 1 ? '' : 'es');
+
+  if (rows.length === 0) {
+    tableEl.innerHTML = '<div class="empty">No tickers match these filters.</div>';
+    return;
+  }
+
+  const sorted = rows.slice().sort((a, b) => b.pct_change - a.pct_change);
+
+  let html = '<div class="table-scroll"><table><tr>' +
+    '<th>Ticker</th><th>Price</th><th>% Chg</th><th>RSI</th><th>vs MA50</th><th>vs MA200</th><th>Rel. Vol</th><th>52W High</th><th>52W Low</th>' +
+    '</tr>';
+  sorted.forEach(r => {
+    html += '<tr>' +
+      '<td><a href="#" onclick="scanLoadTicker(\'' + r.ticker + '\'); return false;" style="color:#6fa1ff; text-decoration:none;">' + r.ticker + '</a></td>' +
+      '<td>$' + fmtNum(r.price) + '</td>' +
+      '<td class="' + changeClass(r.pct_change) + '">' + fmtPct(r.pct_change) + '</td>' +
+      '<td>' + (r.rsi !== null ? r.rsi : '—') + '</td>' +
+      '<td class="' + changeClass(r.pct_vs_ma50) + '">' + fmtPct(r.pct_vs_ma50) + '</td>' +
+      '<td class="' + changeClass(r.pct_vs_ma200) + '">' + fmtPct(r.pct_vs_ma200) + '</td>' +
+      '<td>' + r.relative_volume + 'x</td>' +
+      '<td>$' + fmtNum(r.week52_high) + '</td>' +
+      '<td>$' + fmtNum(r.week52_low) + '</td>' +
+      '</tr>';
+  });
+  html += '</table></div>';
+  tableEl.innerHTML = html;
+}
+
+function scanLoadTicker(ticker) {
+  switchTab('search');
+  document.getElementById('searchInput').value = ticker;
+  loadStock(ticker);
 }
 
 // ---------- Manual trade (Search tab) ----------

@@ -28,6 +28,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel
 
+import backtester
 import config
 import db
 import alpaca_data
@@ -163,6 +164,14 @@ class ManualTradeRequest(BaseModel):
     side: str  # "buy" or "sell"
     mode: str  # "dollars" or "shares"
     value: float
+
+
+class BacktestRequest(BaseModel):
+    ticker: str
+    entry_strategy: str
+    exit_strategy: str
+    period: str = "2y"
+    starting_capital: float = 10000
 
 
 class LoginRequest(BaseModel):
@@ -411,6 +420,16 @@ scheduler.add_job(
     next_run_time=datetime.now() + timedelta(seconds=90),
 )
 
+# Same reasoning as the momentum scan above, on its own timer since it's a
+# separate ~500-ticker download (technical fields for the Screener page's
+# Scan tab, not momentum movers). Staggered further past startup and given
+# a longer interval since technicals don't shift within minutes the way an
+# intraday mover list does, and to avoid both scans hitting Yahoo at once.
+scheduler.add_job(
+    market_data.refresh_screener_cache, "interval", minutes=30,
+    next_run_time=datetime.now() + timedelta(seconds=180),
+)
+
 backup_hour, backup_minute = config.DB_BACKUP_TIME.split(":")
 scheduler.add_job(send_database_backup, "cron", hour=int(backup_hour), minute=int(backup_minute))
 
@@ -468,6 +487,24 @@ def api_news(_=Depends(require_api_login)):
 @app.get("/api/momentum")
 def api_momentum(_=Depends(require_api_login)):
     return market_data.get_momentum_movers()
+
+
+@app.get("/api/screener/scan")
+def api_screener_scan(_=Depends(require_api_login)):
+    return market_data.get_screener_data()
+
+
+@app.post("/api/backtest")
+def api_backtest(payload: BacktestRequest, _=Depends(require_api_login)):
+    ticker = payload.ticker.strip().upper()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="Ticker is required.")
+    if payload.period not in backtester.BACKTEST_PERIODS:
+        raise HTTPException(status_code=400, detail="Invalid period.")
+    return backtester.run_backtest(
+        ticker, payload.entry_strategy, payload.exit_strategy,
+        payload.period, payload.starting_capital,
+    )
 
 
 @app.get("/api/fear-greed")
