@@ -183,6 +183,7 @@
   #chartContainer svg { width: 100%; max-width: 100%; height: 240px; display: block; cursor: crosshair; touch-action: none; }
   #perfChartContainer { max-width: 100%; }
   #perfChartContainer svg { width: 100%; max-width: 100%; height: 200px; display: block; }
+  #tvAdvancedChart { height: 520px; width: 100%; }
   .chart-hover-label {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 11px;
@@ -221,6 +222,7 @@
     .stock-price-row { margin-left: 0; }
   }
 </style>
+<script src="https://s3.tradingview.com/tv.js"></script>
 </head>
 <body>
 
@@ -1033,6 +1035,37 @@ async function loadStock(ticker) {
   renderStock(data);
   currentRange = '1M';
   loadChart();
+  loadAdvancedChart(currentTicker);
+}
+
+// TradingView's own embeddable widget -- full candlesticks, a volume pane,
+// its drawing-tool sidebar, and adjustable indicators, none of which our
+// own lightweight SVG chart above attempts to replicate. Loaded once and
+// re-instantiated (not appended) on the same container each time a new
+// ticker loads, since the widget owns and fully repaints its container.
+function loadAdvancedChart(ticker) {
+  const container = document.getElementById('tvAdvancedChart');
+  if (!container) return;
+  if (typeof TradingView === 'undefined') {
+    container.innerHTML = '<div class="empty">Advanced chart failed to load.</div>';
+    return;
+  }
+  new TradingView.widget({
+    autosize: true,
+    symbol: ticker,
+    interval: 'D',
+    timezone: 'Etc/UTC',
+    theme: 'dark',
+    style: '1',
+    locale: 'en',
+    toolbar_bg: '#171a21',
+    enable_publishing: false,
+    allow_symbol_change: false,
+    hide_side_toolbar: false,
+    withdateranges: true,
+    studies: ['Volume@tv-basicstudies'],
+    container_id: 'tvAdvancedChart',
+  });
 }
 
 function renderStock(data) {
@@ -1057,6 +1090,12 @@ function renderStock(data) {
     '<button data-range="' + r + '" class="' + (r === currentRange ? 'active' : '') + '" onclick="setRange(\'' + r + '\')">' + r + '</button>'
   ).join('') + '</div>';
   html += '<div id="chartContainer"><div class="empty">Loading chart...</div></div>';
+  html += '</div>';
+
+  html += '<div class="panel">';
+  html += '<h2>Advanced Chart</h2>';
+  html += '<div class="subtitle" style="margin-bottom:12px;">Candlesticks, volume, drawing tools, and indicators — powered by TradingView.</div>';
+  html += '<div id="tvAdvancedChart"><div class="empty">Loading advanced chart...</div></div>';
   html += '</div>';
 
   html += '<div class="panel">';

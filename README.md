@@ -51,11 +51,15 @@ using their own entry/exit strategy per ticker.
   (`AUTOTRADE_RUN_TIME`), or **Run Now** to test. Defaults to paper
   trading — see the safety note below before ever changing that.
 - **Screener** (`/screener`) — search any publicly traded stock (not just your
-  watchlist) by ticker or company name. Shows a price chart (1D through
-  5Y), key stats (market cap, volume, 52-week range, PE ratio, EPS),
-  recent earnings, quarterly revenue/net income, and company news, with
-  a one-click **+ Add to Watchlist**. Data comes from yfinance, cached
-  per ticker for a few minutes so browsing doesn't hammer Yahoo Finance.
+  watchlist) by ticker or company name. Shows a quick price chart (1D
+  through 5Y), an embedded TradingView **Advanced Chart** underneath it
+  (real candlesticks, a volume pane, TradingView's own drawing tools and
+  indicators — a third-party widget, not something we built or host
+  ourselves), key stats (market cap, volume, 52-week range, PE ratio,
+  EPS), recent earnings, quarterly revenue/net income, and company news,
+  with a one-click **+ Add to Watchlist**. Data comes from yfinance,
+  cached per ticker for a few minutes so browsing doesn't hammer Yahoo
+  Finance.
   Also has **Search**/**Holdings**/**Performance**/**Backtest**/**Scan**
   tabs: Search lets you place a manual buy/sell market order (by dollar
   amount or share count) on whatever stock you're viewing, Holdings
