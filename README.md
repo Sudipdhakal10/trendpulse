@@ -56,10 +56,14 @@ using their own entry/exit strategy per ticker.
   recent earnings, quarterly revenue/net income, and company news, with
   a one-click **+ Add to Watchlist**. Data comes from yfinance, cached
   per ticker for a few minutes so browsing doesn't hammer Yahoo Finance.
-  Also has **Search**/**Holdings** tabs: Search lets you place a manual
-  buy/sell market order (by dollar amount or share count) on whatever
-  stock you're viewing, and Holdings shows your current Alpaca
-  positions with a one-click Sell All per row — both use the same
+  Also has **Search**/**Holdings**/**Performance** tabs: Search lets you
+  place a manual buy/sell market order (by dollar amount or share
+  count) on whatever stock you're viewing, Holdings shows your current
+  Alpaca positions with a one-click Sell All per row, and Performance
+  charts your account's equity over time (straight from Alpaca's own
+  tracking, not reconstructed) alongside a same-period S&amp;P 500
+  comparison and all-time realized P&amp;L/win-rate stats (FIFO-matched
+  against your actual filled Alpaca orders). All three use the same
   Alpaca keys already set on the AutoTrade page, independent of any
   AutoTrade strategy.
 - **Sentiment** (`/sentiment`) — a homegrown 0-100 Fear &amp; Greed-style

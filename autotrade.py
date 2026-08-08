@@ -27,15 +27,30 @@ Defaults to true. Do not flip to false until you're fully ready, and even
 then, start small.
 """
 
+from collections import deque
+
 import yfinance as yf
 from alpaca.common.exceptions import APIError
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest, GetOrdersRequest
+from alpaca.trading.requests import GetOrdersRequest, GetPortfolioHistoryRequest, MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 
 import config
 import db
 import signals
+
+# Range button -> (Alpaca portfolio-history period+timeframe, matching
+# yfinance period for the SPY benchmark comparison). Alpaca's period format
+# is "<number><unit>" (D/W/M/A) or the literal "all"; yfinance has no "all"
+# equivalent so "max" is the closest match there.
+PERFORMANCE_RANGES = {
+    "1D": {"alpaca_period": "1D", "alpaca_timeframe": "5Min", "yf_period": "1d"},
+    "1W": {"alpaca_period": "1W", "alpaca_timeframe": "1H", "yf_period": "5d"},
+    "1M": {"alpaca_period": "1M", "alpaca_timeframe": "1D", "yf_period": "1mo"},
+    "3M": {"alpaca_period": "3M", "alpaca_timeframe": "1D", "yf_period": "3mo"},
+    "1Y": {"alpaca_period": "1A", "alpaca_timeframe": "1D", "yf_period": "1y"},
+    "All": {"alpaca_period": "all", "alpaca_timeframe": "1D", "yf_period": "max"},
+}
 
 MAX_PER_TICKER = 10000
 MIN_TRADE_DOLLARS = 100
@@ -318,4 +333,123 @@ def get_account_summary(api_key, secret_key):
             for p in positions
         ],
         "pending_orders": pending_orders,
+    }
+
+
+def get_portfolio_history(api_key, secret_key, range_key):
+    """Account equity over time, straight from Alpaca's own tracking --
+    far more reliable than trying to reconstruct historical portfolio
+    value ourselves from ticker prices at arbitrary past timestamps."""
+    client = get_trading_client(api_key, secret_key)
+    if client is None:
+        return {"error": "Alpaca API keys not set."}
+
+    params = PERFORMANCE_RANGES.get(range_key, PERFORMANCE_RANGES["1M"])
+
+    try:
+        history = client.get_portfolio_history(GetPortfolioHistoryRequest(
+            period=params["alpaca_period"],
+            timeframe=params["alpaca_timeframe"],
+        ))
+    except APIError as e:
+        return {"error": f"Alpaca rejected these API keys: {e}"}
+    except Exception as e:
+        return {"error": f"Could not load portfolio history: {e}"}
+
+    points = [
+        {"t": ts, "equity": eq}
+        for ts, eq in zip(history.timestamp, history.equity)
+        if eq is not None
+    ]
+    return {"points": points, "base_value": history.base_value}
+
+
+def get_benchmark_return(range_key):
+    """SPY's % change over the same range, for a 'vs S&P 500' comparison
+    stat next to the portfolio's own return."""
+    params = PERFORMANCE_RANGES.get(range_key, PERFORMANCE_RANGES["1M"])
+    try:
+        hist = yf.Ticker("SPY").history(period=params["yf_period"])
+        closes = hist["Close"].dropna()
+        if len(closes) < 2:
+            return None
+        return round(float((closes.iloc[-1] - closes.iloc[0]) / closes.iloc[0] * 100), 2)
+    except Exception as e:
+        print(f"Benchmark return fetch failed: {e}")
+        return None
+
+
+def _compute_realized_pnl(filled_orders):
+    """FIFO lot-matching: each sell consumes the oldest still-open buy
+    lots for that ticker first. filled_orders must already be sorted
+    chronologically. Returns one realized P&L amount per sell that
+    matched at least some open quantity -- a sell with no prior buy in
+    this order history (e.g. a position that predates it) is skipped
+    for that leftover portion since there's no cost basis to compare against."""
+    open_lots = {}  # ticker -> deque of [qty, price]
+    realized = []
+
+    for o in filled_orders:
+        lots = open_lots.setdefault(o["ticker"], deque())
+        if o["side"] == "buy":
+            lots.append([o["qty"], o["price"]])
+            continue
+
+        remaining = o["qty"]
+        pnl = 0.0
+        matched_qty = 0.0
+        while remaining > 1e-9 and lots:
+            lot_qty, lot_price = lots[0]
+            take = min(lot_qty, remaining)
+            pnl += (o["price"] - lot_price) * take
+            matched_qty += take
+            remaining -= take
+            if take >= lot_qty - 1e-9:
+                lots.popleft()
+            else:
+                lots[0][0] = lot_qty - take
+        if matched_qty > 0:
+            realized.append(pnl)
+
+    return realized
+
+
+def get_trade_performance(api_key, secret_key):
+    """Realized P&L and win rate from Alpaca's own filled-order history
+    (not trade_log, which never stored fill prices) -- FIFO-matches
+    every filled sell against the oldest still-open filled buys for
+    that ticker."""
+    client = get_trading_client(api_key, secret_key)
+    if client is None:
+        return {"error": "Alpaca API keys not set."}
+
+    try:
+        orders = client.get_orders(GetOrdersRequest(status=QueryOrderStatus.CLOSED, limit=500))
+    except APIError as e:
+        return {"error": f"Alpaca rejected these API keys: {e}"}
+
+    filled = []
+    for o in orders:
+        if not o.filled_at or not o.filled_qty or not o.filled_avg_price:
+            continue
+        filled.append({
+            "ticker": o.symbol,
+            "side": o.side.value,
+            "qty": float(o.filled_qty),
+            "price": float(o.filled_avg_price),
+            "filled_at": o.filled_at,
+        })
+    filled.sort(key=lambda o: o["filled_at"])
+
+    realized = _compute_realized_pnl(filled)
+    wins = sum(1 for p in realized if p > 0)
+    losses = sum(1 for p in realized if p < 0)
+    decided = wins + losses
+
+    return {
+        "realized_pl": round(sum(realized), 2),
+        "closed_trades": len(realized),
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round(wins / decided * 100, 1) if decided > 0 else None,
     }

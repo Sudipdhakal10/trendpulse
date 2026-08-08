@@ -178,6 +178,8 @@
   .range-buttons button.active { background: #3b6ef6; }
   #chartContainer { max-width: 100%; }
   #chartContainer svg { width: 100%; max-width: 100%; height: 240px; display: block; cursor: crosshair; touch-action: none; }
+  #perfChartContainer { max-width: 100%; }
+  #perfChartContainer svg { width: 100%; max-width: 100%; height: 200px; display: block; }
   .chart-hover-label {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 11px;
@@ -252,6 +254,7 @@
 <div class="tab-nav">
   <button class="tab-btn active" id="tabBtnSearch" onclick="switchTab('search')">Search</button>
   <button class="tab-btn" id="tabBtnHoldings" onclick="switchTab('holdings')">Holdings</button>
+  <button class="tab-btn" id="tabBtnPerformance" onclick="switchTab('performance')">Performance</button>
 </div>
 
 <div id="searchTab">
@@ -279,6 +282,24 @@
   </div>
 </div>
 
+<div id="performanceTab" style="display:none;">
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Portfolio Performance</h2>
+      <button class="secondary" id="performanceRefreshBtn" onclick="loadPerformance()" style="font-size:12.5px; padding:5px 12px;">Refresh</button>
+    </div>
+    <div class="subtitle" style="margin-bottom:10px;">Your account's value over time, straight from Alpaca's own tracking.</div>
+    <div class="range-buttons" id="perfRangeButtons"></div>
+    <div id="perfChartContainer"><div class="empty">Loading...</div></div>
+    <div class="stats-grid" id="perfRangeStats" style="margin-top:16px;"></div>
+  </div>
+  <div class="panel">
+    <h2>All-Time Trade Stats</h2>
+    <div class="subtitle" style="margin-bottom:12px;">Realized gains/losses, matched FIFO against your filled buy/sell history on Alpaca.</div>
+    <div class="stats-grid" id="perfAllTimeStats"></div>
+  </div>
+</div>
+
 <script>
 let currentTicker = null;
 let currentRange = '1M';
@@ -300,9 +321,12 @@ loadTradeConfig();
 function switchTab(tab) {
   document.getElementById('searchTab').style.display = tab === 'search' ? 'block' : 'none';
   document.getElementById('holdingsTab').style.display = tab === 'holdings' ? 'block' : 'none';
+  document.getElementById('performanceTab').style.display = tab === 'performance' ? 'block' : 'none';
   document.getElementById('tabBtnSearch').classList.toggle('active', tab === 'search');
   document.getElementById('tabBtnHoldings').classList.toggle('active', tab === 'holdings');
+  document.getElementById('tabBtnPerformance').classList.toggle('active', tab === 'performance');
   if (tab === 'holdings') loadHoldings();
+  if (tab === 'performance') loadPerformance();
 }
 
 async function loadTradeConfig() {
@@ -389,6 +413,153 @@ async function sellAll(ticker, qty, button) {
     alert('Sell failed — try again in a moment.');
     button.disabled = false;
   }
+}
+
+// ---------- Performance ----------
+
+const PERF_RANGES = ['1D', '1W', '1M', '3M', '1Y', 'All'];
+let currentPerfRange = '1M';
+
+function statBoxColored(label, value, colorClass) {
+  return '<div class="stat-box"><div class="stat-label">' + label + '</div><div class="stat-value ' + colorClass + '">' + value + '</div></div>';
+}
+
+function loadPerformance() {
+  document.getElementById('perfRangeButtons').innerHTML = PERF_RANGES.map(r =>
+    '<button data-range="' + r + '" class="' + (r === currentPerfRange ? 'active' : '') + '" onclick="setPerfRange(\'' + r + '\')">' + r + '</button>'
+  ).join('');
+  loadPerformanceChart();
+  loadPerformanceAllTimeStats();
+}
+
+function setPerfRange(r) {
+  currentPerfRange = r;
+  document.querySelectorAll('#perfRangeButtons button').forEach(b => {
+    b.classList.toggle('active', b.dataset.range === r);
+  });
+  loadPerformanceChart();
+}
+
+async function loadPerformanceChart() {
+  const chartEl = document.getElementById('perfChartContainer');
+  const statsEl = document.getElementById('perfRangeStats');
+  chartEl.innerHTML = '<div class="empty">Loading...</div>';
+
+  let data;
+  try {
+    const res = await fetch('/api/portfolio/history?range=' + currentPerfRange);
+    data = await res.json();
+  } catch (e) {
+    chartEl.innerHTML = '<div class="empty">Could not load performance data — try refreshing shortly.</div>';
+    statsEl.innerHTML = '';
+    return;
+  }
+
+  if (data.error) {
+    const isKeysError = data.error.toLowerCase().includes('keys');
+    chartEl.innerHTML = '<div class="empty">' + data.error +
+      (isKeysError ? ' <a href="/autotrade" style="color:#6fa1ff;">Add them on the AutoTrade page</a>.' : '') + '</div>';
+    statsEl.innerHTML = '';
+    return;
+  }
+
+  renderPerfChart(data.points);
+  renderPerfRangeStats(data);
+}
+
+function renderPerfChart(points) {
+  const container = document.getElementById('perfChartContainer');
+
+  if (!points || points.length < 2) {
+    container.innerHTML = '<div class="empty">Not enough data for this range yet.</div>';
+    return;
+  }
+
+  const W = 600, H = 200, PAD_TOP = 14, PAD_BOTTOM = 10, PAD_X = 6;
+  const equities = points.map(p => p.equity);
+  const min = Math.min(...equities);
+  const max = Math.max(...equities);
+  const range = (max - min) || 1;
+  const baseline = H - PAD_BOTTOM;
+
+  const xAt = i => PAD_X + (i / (points.length - 1)) * (W - PAD_X * 2);
+  const yAt = v => PAD_TOP + (1 - (v - min) / range) * (H - PAD_TOP - PAD_BOTTOM);
+
+  const coords = points.map((p, i) => ({ x: xAt(i), y: yAt(p.equity) }));
+  const linePath = smoothPath(coords);
+  const last = coords[coords.length - 1];
+  const first = coords[0];
+  const areaPath = linePath + ' L' + last.x + ',' + baseline + ' L' + first.x + ',' + baseline + ' Z';
+
+  const isUp = equities[equities.length - 1] >= equities[0];
+  const color = isUp ? '#4ade80' : '#f87171';
+  const gradId = 'perfGrad-' + currentPerfRange;
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.32" />
+          <stop offset="100%" stop-color="${color}" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#${gradId})" stroke="none" />
+      <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+  `;
+}
+
+function renderPerfRangeStats(data) {
+  const grid = document.getElementById('perfRangeStats');
+  const points = data.points;
+  if (!points || points.length === 0) {
+    grid.innerHTML = '';
+    return;
+  }
+
+  const start = points[0].equity;
+  const end = points[points.length - 1].equity;
+  const changeDollar = end - start;
+  const changePct = start ? (changeDollar / start * 100) : 0;
+
+  let html = '';
+  html += statBox('Portfolio Value', '$' + fmtNum(end));
+  html += statBoxColored(
+    'Return (' + currentPerfRange + ')',
+    (changeDollar >= 0 ? '+' : '-') + '$' + fmtNum(Math.abs(changeDollar)) + ' (' + fmtPct(changePct) + ')',
+    changeClass(changeDollar),
+  );
+  if (data.benchmark_return_pct !== null && data.benchmark_return_pct !== undefined) {
+    html += statBoxColored('S&P 500 (' + currentPerfRange + ')', fmtPct(data.benchmark_return_pct), changeClass(data.benchmark_return_pct));
+  }
+  grid.innerHTML = html;
+}
+
+async function loadPerformanceAllTimeStats() {
+  const grid = document.getElementById('perfAllTimeStats');
+  let data;
+  try {
+    const res = await fetch('/api/portfolio/performance');
+    data = await res.json();
+  } catch (e) {
+    grid.innerHTML = '<div class="empty">Could not load trade stats.</div>';
+    return;
+  }
+
+  if (data.error) {
+    grid.innerHTML = '';
+    return;
+  }
+
+  let html = '';
+  html += statBoxColored(
+    'Realized P&L (All-Time)',
+    (data.realized_pl >= 0 ? '+' : '-') + '$' + fmtNum(Math.abs(data.realized_pl)),
+    changeClass(data.realized_pl),
+  );
+  html += statBox('Win Rate', data.win_rate !== null ? data.win_rate + '%' : '—');
+  html += statBox('Closed Trades', data.closed_trades);
+  grid.innerHTML = html;
 }
 
 // ---------- Manual trade (Search tab) ----------

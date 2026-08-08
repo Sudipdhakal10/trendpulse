@@ -517,6 +517,21 @@ def api_autotrade_status(user_id: int = Depends(require_api_login)):
     return autotrade.get_account_summary(user["alpaca_api_key"], user["alpaca_secret_key"])
 
 
+@app.get("/api/portfolio/history")
+def api_portfolio_history(range: str = "1M", user_id: int = Depends(require_api_login)):
+    user = db.get_user_by_id(user_id)
+    result = autotrade.get_portfolio_history(user["alpaca_api_key"], user["alpaca_secret_key"], range)
+    if "error" not in result:
+        result["benchmark_return_pct"] = autotrade.get_benchmark_return(range)
+    return result
+
+
+@app.get("/api/portfolio/performance")
+def api_portfolio_performance(user_id: int = Depends(require_api_login)):
+    user = db.get_user_by_id(user_id)
+    return autotrade.get_trade_performance(user["alpaca_api_key"], user["alpaca_secret_key"])
+
+
 @app.get("/api/autotrade/trades")
 def api_autotrade_trades(user_id: int = Depends(require_api_login)):
     return db.get_recent_trades(user_id)
