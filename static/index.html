@@ -229,7 +229,7 @@
       <div class="action-row">
         <input type="text" id="tickerInput" placeholder="e.g. AAPL" maxlength="10">
         <button onclick="addTicker()">Add</button>
-        <button class="secondary" onclick="checkNow()">Check Now</button>
+        <button class="secondary" onclick="checkNow(this)">Check Now</button>
         <span id="status"></span>
       </div>
     </div>
@@ -389,7 +389,14 @@ async function toggleStrategy(ticker, strategy, enabled) {
   });
 }
 
-async function checkNow() {
+async function checkNow(button) {
+  // Without disabling the button, an impatient second click while the
+  // first check is still in flight fires a second overlapping request --
+  // whichever resolves last silently overwrites the other's result, which
+  // looks exactly like "stuck on Checking... until I click it twice."
+  if (button.disabled) return;
+  button.disabled = true;
+
   const status = document.getElementById('status');
   status.textContent = 'Checking...';
   try {
@@ -402,6 +409,8 @@ async function checkNow() {
     loadAlerts();
   } catch (e) {
     status.textContent = 'Check failed — try again in a moment.';
+  } finally {
+    button.disabled = false;
   }
   setTimeout(() => status.textContent = '', 5000);
 }

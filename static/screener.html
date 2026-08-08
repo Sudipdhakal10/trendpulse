@@ -31,6 +31,8 @@
     margin-bottom: 20px;
   }
   .panel h2 { font-size: 15px; margin-top: 0; color: #ccc; }
+  .panel-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+  .panel-header h2 { margin: 0; }
   input[type=text] {
     background: #0f1115;
     border: 1px solid #333;
@@ -74,15 +76,17 @@
 
   /* Trade panel */
   .trade-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-  .trade-row input[type=number] {
+  .trade-row input[type=number],
+  .trade-row select {
     background: #0f1115;
     border: 1px solid #333;
     color: #eee;
     padding: 8px 10px;
     border-radius: 6px;
     font-size: 14px;
-    width: 130px;
   }
+  .trade-row input[type=number] { width: 130px; }
+  .trade-row select { width: 130px; cursor: pointer; }
   .trade-status-ok { font-size: 13px; color: #7fdc9c; }
   .trade-status-error { font-size: 13px; color: #f87171; }
   .paper-badge { font-size: 11px; font-weight: 600; color: #6fdc9c; background: #1f3a2c; border: 1px solid #2f5c42; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
